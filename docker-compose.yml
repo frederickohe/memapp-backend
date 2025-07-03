@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:15
+    container_name: ld_postgres
+    environment:
+      POSTGRES_DB: lambdar_db
+      POSTGRES_USER: ld_admin
+      POSTGRES_PASSWORD: mAnAgyA1
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    container_name: lambdar_core
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/lambdar_db
+      SPRING_DATASOURCE_USERNAME: ld_admin
+      SPRING_DATASOURCE_PASSWORD: mAnAgyA1
+      SPRING_PROFILES_ACTIVE: ldadmin
+      APP_UPLOAD_DIR: uploads/profiles
+      APP_BASE_URL: https://lambdarcorp.com
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials.json
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"

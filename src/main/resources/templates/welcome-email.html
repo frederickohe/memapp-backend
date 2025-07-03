@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Green Brain Lambdar</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;background:#f4f7fa;text-align:center} 
+        .email-container{max-width:600px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);overflow:hidden} 
+        .header{background:#a11b70;color:#fff;padding:40px 30px;text-align:center} 
+        .subtitle{font-size:24px;font-weight:400} 
+        .content{padding:40px 30px} 
+        h1{font-size:24px;margin-bottom:20px;font-weight:600} 
+        p.description{color:#000;margin-bottom:10px;font-size:14px;font-weight:200} 
+        .highlight-box{background:#fff;padding:25px;margin:30px 0;border-radius:8px} 
+        .highlight-text{color:#000;margin-bottom:10px;font-size:14px;font-weight:200} 
+        .cta-button{display:inline-block;background:#a11b70;color:#fff;text-decoration:none;padding:8px 32px;border-radius:8px;font-size:16px;font-weight:400;transition:.3s;box-shadow:0 4px 15px rgba(39,174,96,.3);margin:20px 0;cursor:pointer;border:none;}
+        .cta-button:hover,
+        .cta-button:focus {background:#7d1557;color:#fff;text-decoration:none;outline:none;}
+        .button-container{text-align:center;margin:0 auto}
+        .button-container a {display:inline-block; text-decoration:none; color:#fff; font-weight:400; border-radius:8px; transition:background 0.3s;}
+        .button-container a:hover, .button-container a:focus {background:#7d1557; color:#fff;}
+        .warning-box{background:#fff3cd;border:1px solid #ffeaa7;border-radius:8px;padding:20px;margin:30px 0} 
+        .warning-text{color:#856404;font-size:14px;display:flex;align-items:center} 
+        .warning-icon{color:#f39c12;font-size:20px;margin-right:10px} 
+        .notice-text{color:#000;margin-bottom:10px;font-size:14px;font-weight:200;text-align:center} 
+        .footer{background:#f8fafc;padding:10px;text-align:center;border-top:1px solid #e2e8f0} 
+        @media(max-width:600px)
+        {.email-container{margin:10px;border-radius:8px}
+        .header,.content,
+        .footer{padding:25px 20px}
+        h1{font-size:20px}
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <div class="subtitle">Lambdar Asset Management Platform</div>
+    </div>
+    <div class="content">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td align="center">
+            <h1 style="font-size:24px; margin:20px 0; font-weight:600; color:#000; text-align:center;">
+                Welcome, [FIRST_NAME]!
+            </h1>
+            </td>
+        </tr>
+        </table>
+        <p class="description">
+        This password setup link will expire in 7 days. If you don't set up your password within this time, please contact your administrator for assistance.
+        </p>
+        <div class="highlight-box">
+            <h3>🔐 Account Setup Required</h3>
+            <p  class="highlight-text">To secure your account and get started, you'll need to create your password. This is a one-time setup process that ensures your account remains safe and secure.</p>
+        </div>
+        <div class="button-container">
+                <a href="[SETUP_URL]" class="cta-button">Set Up Password</a>
+        </div>
+        <div class="warning-box">
+            <div class="warning-text">
+                <span class="warning-icon">⚠️</span>
+                <span>This password setup link will expire in 24 Hours. If you don't set up your password within this time, please contact your administrator for assistance.</span>
+            </div>
+        </div>
+        <p class="notice-text">
+            Once you've set up your password, you'll have full access to all the features and tools available in Green Brain Lambdar. If you have any questions or need assistance, don't hesitate to reach out to your administrator or our support team.
+        </p>
+    </div>
+    <div class="footer">
+        <div style="margin-top:20px;font-size:12px;">© 2025 LambdarAssetManagement. All rights reserved.<br></div>
+    </div>
+</div>
+</body>
+</html>

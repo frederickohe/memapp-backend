@@ -1,0 +1,106 @@
+definitions:
+  services:
+    docker:
+      memory: 1024
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Build, Tag, and Push Backend Docker Image
+          image: google/cloud-sdk:slim
+          services:
+            - docker
+          caches:
+            - maven
+          script:
+            - export ARTIFACT_REGISTRY_PATH_BACKEND=us-east1-docker.pkg.dev/deployment-testing-460522/nexus-backend-image
+            # 1. Authenticate to Google Artifact Registry
+            - echo "Logging into Google Artifact Registry..."
+            - echo $GCP_SA_KEY | base64 -d > /tmp/gcp-key.json
+            - cat /tmp/gcp-key.json | docker login -u _json_key --password-stdin https://${ARTIFACT_REGISTRY_PATH_BACKEND%%/*}
+            - rm /tmp/gcp-key.json
+
+            # 2. Build the Maven project (skip tests for speed, remove -DskipTests to run tests)
+            - apt-get update && apt-get install -y openjdk-17-jdk
+            - export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+            - chmod +x ./mvnw
+            - ./mvnw clean package -DskipTests
+
+            # 3. Build Docker image
+            - docker build -t $ARTIFACT_REGISTRY_PATH_BACKEND/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT .
+            - docker tag $ARTIFACT_REGISTRY_PATH_BACKEND/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT $ARTIFACT_REGISTRY_PATH_BACKEND/$BITBUCKET_REPO_SLUG:latest
+
+            # 4. Push Docker images
+            - docker push $ARTIFACT_REGISTRY_PATH_BACKEND/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT
+            - docker push $ARTIFACT_REGISTRY_PATH_BACKEND/$BITBUCKET_REPO_SLUG:latest
+
+            - echo "Backend Docker image pushed successfully."
+      # Testing if docker-compose can be used in Bitbucket Pipelines
+      # Uncomment the following step if you want to run docker-compose for integration tests.
+      # - step:
+      #     name: Run docker-compose for Integration Test
+      #     image: docker/compose:1.29.2
+      #     services:
+      #       - docker
+      #     script:
+      #       - docker-compose --version
+      #       - docker-compose up -d
+      #       - docker-compose ps
+      - step:
+          name: Deploy to VM
+          image: atlassian/default-image:3
+          trigger: manual
+          script:
+            - mkdir -p ~/.ssh
+            - echo "$VM_SSH_KEY" | base64 -d > ~/.ssh/id_rsa
+            - chmod 600 ~/.ssh/id_rsa
+            - ssh-keyscan "${VM_IP}" >> ~/.ssh/known_hosts
+            - |
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${VM_USER}@${VM_IP} "
+                echo 'Starting backend deployment on VM...' &&
+                
+                echo 'Attempting Docker login on VM for Artifact Registry pull...' &&
+                echo '${GCP_SA_KEY_FOR_VM_PULL}' | base64 -d > ~/gcp-key-pull.json &&
+                docker login -u _json_key --password-stdin https://${ARTIFACT_REGISTRY_PATH_BACKEND%%/*} < ~/gcp-key-pull.json &&
+                rm ~/gcp-key-pull.json &&
+                echo 'VM Docker authenticated to Artifact Registry for pulling.' || echo 'VM Docker auth for pull failed or was skipped.' "
+                
+            #    &&
+                
+            #     IMAGE_TO_PULL=\"${ARTIFACT_REGISTRY_PATH_BACKEND}/${BITBUCKET_REPO_SLUG}:latest\" &&
+            #     # Or use specific commit: IMAGE_TO_PULL=\"${ARTIFACT_REGISTRY_PATH_BACKEND}/${BITBUCKET_REPO_SLUG}:${BITBUCKET_COMMIT}\" &&
+
+            #     echo \"Pulling image: \$IMAGE_TO_PULL\" &&
+            #     docker pull \"\$IMAGE_TO_PULL\" &&
+                
+            #     echo 'Stopping and removing old backend container (if exists)...' &&
+            #     (docker stop ${CONTAINER_NAME_BACKEND} || true) &&
+            #     (docker rm ${CONTAINER_NAME_BACKEND} || true) &&
+                
+            #     echo 'Running new backend container...' &&
+            #     # IMPORTANT: Add necessary environment variables for your Spring Boot app here!
+            #     # Example: -e SPRING_DATASOURCE_URL='${SPRING_DATASOURCE_URL_FOR_VM}' \
+            #     #          -e SPRING_DATASOURCE_USERNAME='${SPRING_DATASOURCE_USERNAME_FOR_VM}' \
+            #     #          -e SPRING_DATASOURCE_PASSWORD='${SPRING_DATASOURCE_PASSWORD_FOR_VM}' \
+            #     #          -e SPRING_PROFILES_ACTIVE='${SPRING_PROFILES_ACTIVE_FOR_VM}' \
+            #     # These _FOR_VM variables would need to be defined in Bitbucket if they differ from CI test,
+            #     # or if you want to pass them explicitly.
+            #     # For the backend to connect to a Postgres container run by Docker Compose on the SAME VM,
+            #     # you'd need to ensure they are on the same Docker network.
+            #     # For now, let's just get the container running. DB connection will be the next refinement.
+            #     docker run -d --restart always \
+            #       -p ${HOST_PORT_BACKEND}:${CONTAINER_PORT_BACKEND} \
+            #       --name ${CONTAINER_NAME_BACKEND} \
+            #       \"\$IMAGE_TO_PULL\" &&
+            #       # To connect to a DB later (e.g., 'nexus_postgres' started by compose):
+            #       # --network=my_app_network \  (If you create a network, e.g. my_app_network)
+            #       # And ensure your SPRING_DATASOURCE_URL in the container points to the DB container's name on that network.
+                
+            #     echo 'Deployment of ${CONTAINER_NAME_BACKEND} complete.' &&
+            #     docker ps -f name=${CONTAINER_NAME_BACKEND} &&
+                
+            #     echo 'Cleaning up old unused images...' &&
+            #     docker image prune -af || true
+            #   "
+            # - echo "VM backend deployment script executed."
