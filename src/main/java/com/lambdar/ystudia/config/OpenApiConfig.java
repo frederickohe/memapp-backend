@@ -23,7 +23,7 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         Server httpsServer = new Server();
-        httpsServer.setUrl("https://lambdarcorp.com");
+        httpsServer.setUrl("https://ymca-studia-be-338912908752.us-east1.run.app");
         httpsServer.setDescription("Production Server");
 
         return new OpenAPI().servers(List.of(httpsServer));
