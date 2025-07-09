@@ -9,6 +9,11 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.lambdar.ystudia.auth.model.PasswordResetToken;
+import com.lambdar.ystudia.auth.model.RefreshToken;
+
+import com.lambdar.ystudia.features.courses.model.Course;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,12 +26,11 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.ManyToMany;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.lambdar.ystudia.auth.model.PasswordResetToken;
-import com.lambdar.ystudia.auth.model.RefreshToken;
 
 @Data
 @Builder
@@ -67,6 +71,16 @@ public class User implements UserDetails {
     
     private String bio;
 
+    private String city;
+
+    private Long enrolledCourseId;
+
+    @Builder.Default
+    @ManyToMany
+    private List<Course> completedCourses = new ArrayList<>();
+
+    private Long progressScore;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -76,8 +90,6 @@ public class User implements UserDetails {
 
     @Builder.Default
     private List<PasswordResetToken> passwordResetTokens = new ArrayList<>();
-
-
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -94,6 +106,10 @@ public class User implements UserDetails {
         return List.of(new SimpleGrantedAuthority("ROLE_" + this.userRole.getRoleName()));
     }
 
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
+    
     @Override
     public String getPassword() {
         return hashedPassword;

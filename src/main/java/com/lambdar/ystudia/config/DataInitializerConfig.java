@@ -15,13 +15,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import com.lambdar.ystudia.repository.UserRoleRepository;
 import com.lambdar.ystudia.user.model.User;
 import com.lambdar.ystudia.user.model.UserRole;
 import com.lambdar.ystudia.user.repository.UserRepository;
-import com.lambdar.ystudia.repository.UserRoleRepository;
 
 import lombok.RequiredArgsConstructor;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Component
@@ -60,7 +59,7 @@ public class DataInitializerConfig implements CommandLineRunner {
     private void initializeRoles() {
         log.info("Initializing user roles...");
 
-        List<String> roleNames = Arrays.asList("ADMIN", "CLIENT", "SUPERADMIN");
+        List<String> roleNames = Arrays.asList("ADMIN", "STUDENT", "FACILITATOR", "SUPERADMIN");
 
         for (String roleName : roleNames) {
             if (!userRoleRepository.existsByRoleName(roleName)) {
@@ -110,7 +109,8 @@ public class DataInitializerConfig implements CommandLineRunner {
     private String getRoleDescription(String roleName) {
         return switch (roleName) {
             case "ADMIN" -> "Administrator with full system access";
-            case "CLIENT" -> "Standard client user with limited access";
+            case "STUDENT" -> "Student with access to learning resources";
+            case "FACILITATOR" -> "Teacher with access to teaching resources";
             case "SUPERADMIN" -> "Super administrator with ultimate system control";
             default -> "User role";
         };

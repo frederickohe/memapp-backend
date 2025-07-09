@@ -35,7 +35,6 @@ public class AuthController {
     }
 
     @PostMapping("/sign-up")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MessageResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
         return ResponseEntity.ok(authService.register(registerRequest));
     }

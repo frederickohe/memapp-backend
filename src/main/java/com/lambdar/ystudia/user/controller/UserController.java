@@ -1,21 +1,29 @@
 package com.lambdar.ystudia.user.controller;
 
-import com.lambdar.ystudia.user.dto.request.UserFilterRequest;
-import com.lambdar.ystudia.dto.response.MessageResponse;
-import com.lambdar.ystudia.user.dto.response.UserResponse;
-import com.lambdar.ystudia.mapper.UserMapper;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.lambdar.ystudia.dto.response.MessageResponse;
+import com.lambdar.ystudia.user.dto.request.UserFilterRequest;
+import com.lambdar.ystudia.user.dto.response.UserResponse;
 import com.lambdar.ystudia.user.service.UserService;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("api/v1/users")
@@ -23,7 +31,6 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
-    private final UserMapper userMapper;
 
     @GetMapping("/me")
     @ResponseStatus(HttpStatus.OK)
@@ -57,7 +64,6 @@ public class UserController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
-
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")

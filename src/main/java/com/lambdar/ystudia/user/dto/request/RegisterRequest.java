@@ -20,6 +20,17 @@ public class RegisterRequest {
     @NotBlank(message = "Last name is required")
     private String lastName;
 
+    @NotBlank(message = "Username is required")
+    private String username;
+
+    private String phone;
+
+    private String bio;
+
+    private String city;
+    
+    private Long enrolledCourseId;
+
     @NotBlank(message = "Email is required")
     @Email(message = "Email should be valid")
     private String email;
@@ -28,7 +39,6 @@ public class RegisterRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    private String phone;
-
     private Long roleId;
+
 }
