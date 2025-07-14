@@ -1,0 +1,22 @@
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, validator
+
+class UserCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=100)
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+    username: str = Field(..., min_length=1, max_length=50)
+    phone: Optional[str] = Field(None, min_length=10, max_length=15)
+    profile_image_url: Optional[str] = None
+    bio: Optional[str] = Field(None, max_length=500)
+    location_id: Optional[int] = None
+    user_role_id: Optional[int] = None  # Or default to a basic role if needed
+
+    # Optional: Add validation for phone number format
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v is not None and not v.isdigit():
+            raise ValueError("Phone number must contain only digits")
+        return v
