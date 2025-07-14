@@ -7,6 +7,8 @@ from core.auth.controller.authcontroller import auth_routes
 from core.user.controller.usercontroller import user_routes
 from core.profile.controller.profilecontroller import profile_routes
 from core.notification.controller.notificationcontroller import notification_routes
+from core.courses.controller.coursecontroller import course_routes
+
 from dotenv import load_dotenv
 import os
 
@@ -34,9 +36,9 @@ app = FastAPI(
 )
 from utilities.dbconfig import Base, engine
 
-# print("Creating tables...")
-# Base.metadata.create_all(bind=engine)
-# print("Tables created successfully.")
+print("Creating tables...")
+Base.metadata.create_all(bind=engine)
+print("Tables created successfully.")
 
 # Add middleware for CORS
 app.add_middleware(
@@ -53,6 +55,7 @@ app.include_router(auth_routes, prefix="/api/v1/auth", tags=["Auth Routes"])
 app.include_router(user_routes, prefix="/api/v1/user", tags=["User Routes"])
 app.include_router(profile_routes, prefix="/api/v1/profile", tags=["Profile Routes"])
 app.include_router(notification_routes, prefix="/api/v1/notification", tags=["Notification Routes"])
+app.include_router(course_routes, prefix="/api/v1/courses", tags=["Courses Routes"])
 
 
 # Load environment variables
