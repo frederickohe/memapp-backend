@@ -5,12 +5,12 @@ import jwt
 from pydantic import BaseModel
 from core.auth.service.sessiondriver import SessionDriver, TokenData
 from fastapi_jwt_auth import AuthJWT
-from core.business.dto.request.businessupdate import BusinessUpdateRequest
+from core.profile.dto.request.profileupdate import ProfileUpdateRequest
 from core.exceptions import *
 from utilities.dbconfig import SessionLocal
 from sqlalchemy.orm import Session
 from core.user.model.User import User
-from core.business.model.Business import Business
+from core.profile.model.Profile import Profile
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 
 # DTO Models
 from core.user.dto.response.message_response import MessageResponse
-from core.business.dto.response.business_response import BusinessResponse
+from core.profile.dto.response.profile_response import ProfileResponse
 
-from core.business.service.business_service import BusinessService
+from core.profile.service.profile_service import ProfileService
 from fastapi_jwt_auth.exceptions import MissingTokenError
 
 # Reuse the same token validation from user controller
 from core.user.controller.usercontroller import validate_token
 
 # Controller (Router)
-business_routes = APIRouter()
+profile_routes = APIRouter()
 
 def get_db():
     db = SessionLocal()
@@ -36,42 +36,42 @@ def get_db():
     finally:
         db.close()
 
-@business_routes.get("/me", response_model=BusinessResponse)
-def get_current_user_business(
+@profile_routes.get("/me", response_model=ProfileResponse)
+def get_current_user_profile(
     authjwt: AuthJWT = Depends(validate_token), 
     db: Session = Depends(get_db)
 ):
     current_user_email = authjwt.get_jwt_subject()
-    business_service = BusinessService(db)
-    return business_service.get_user_business(current_user_email)
+    profile_service = ProfileService(db)
+    return profile_service.get_user_profile(current_user_email)
 
-@business_routes.put("/me", response_model=BusinessResponse)
-def update_current_user_business(
-    business_data: BusinessUpdateRequest,
+@profile_routes.put("/me", response_model=ProfileResponse)
+def update_current_user_profile(
+    profile_data: ProfileUpdateRequest,
     authjwt: AuthJWT = Depends(validate_token),
     db: Session = Depends(get_db)
 ):
     current_user_email = authjwt.get_jwt_subject()
-    business_service = BusinessService(db)
-    return business_service.update_user_business(current_user_email, business_data)
+    profile_service = ProfileService(db)
+    return profile_service.update_user_profile(current_user_email, profile_data)
 
-@business_routes.get("/user/{user_id}", response_model=BusinessResponse)
-def get_business_by_user_id(
+@profile_routes.get("/user/{user_id}", response_model=ProfileResponse)
+def get_profile_by_user_id(
     user_id: str,
     authjwt: AuthJWT = Depends(validate_token),
     db: Session = Depends(get_db)
 ):
     # Add admin check here if needed
-    business_service = BusinessService(db)
-    return business_service.get_business_by_user_id(user_id)
+    profile_service = ProfileService(db)
+    return profile_service.get_profile_by_user_id(user_id)
 
-@business_routes.put("/user/{user_id}", response_model=BusinessResponse)
-def update_business_by_user_id(
+@profile_routes.put("/user/{user_id}", response_model=ProfileResponse)
+def update_profile_by_user_id(
     user_id: str,
-    business_data: BusinessUpdateRequest,
+    profile_data: ProfileUpdateRequest,
     authjwt: AuthJWT = Depends(validate_token),
     db: Session = Depends(get_db)
 ):
     # Add admin check here if needed
-    business_service = BusinessService(db)
-    return business_service.update_business_by_user_id(user_id, business_data)
+    profile_service = ProfileService(db)
+    return profile_service.update_profile_by_user_id(user_id, profile_data)

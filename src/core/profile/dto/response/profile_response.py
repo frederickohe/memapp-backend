@@ -1,13 +1,15 @@
-# business_request.py
+# profile_response.py
 from pydantic import BaseModel
-from typing import Optional
 from datetime import datetime
-from core.business.model.Business import BusinessCategory
+from typing import Optional
+from core.profile.model.Profile import ProfileType
 
-class BusinessUpdateRequest(BaseModel):
-    name: Optional[str] = None
+class ProfileResponse(BaseModel):
+    id: str
+    user_id: str
+    name: str
     description: Optional[str] = None
-    category: Optional[BusinessCategory] = None
+    category: ProfileType
     website: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
@@ -17,3 +19,5 @@ class BusinessUpdateRequest(BaseModel):
     tax_id: Optional[str] = None
     registration_number: Optional[str] = None
     established_date: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None

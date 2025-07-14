@@ -55,9 +55,9 @@ class User(Base):
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
     
-    # Business relationship (one-to-one)
-    business: Mapped[Optional["Business"]] = relationship(
-        "Business", 
+    # Profile relationship (one-to-one)
+    profile: Mapped[Optional["Profile"]] = relationship(
+        "Profile", 
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False

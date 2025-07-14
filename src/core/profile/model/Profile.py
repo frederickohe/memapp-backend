@@ -7,25 +7,22 @@ from typing import List, Optional
 from sqlalchemy.orm import Mapped, mapped_column
 from enum import Enum
 
-# Business Category Enum
-class BusinessCategory(str, Enum):
-    TECHNOLOGY = "TECHNOLOGY"
-    HEALTHCARE = "HEALTHCARE"
-    FINANCE = "FINANCE"
-    EDUCATION = "EDUCATION"
-    RETAIL = "RETAIL"
-    MANUFACTURING = "MANUFACTURING"
-    CONSULTING = "CONSULTING"
+# Profile Category Enum
+class ProfileType(str, Enum):
+    ADMIN = "ADMIN"
+    DEVELOPER = "DEVELOPER"
+    STUDENT = "STUDENT"
+    TUTOR = "TUTOR"
     OTHER = "OTHER"
 
-class Business(Base):
-    __tablename__ = "businesses"
+class Profile(Base):
+    __tablename__ = "profiles"
     
     id: Mapped[str] = mapped_column(String(20), primary_key=True, nullable=False, unique=True)
     user_id: Mapped[str] = mapped_column(String(20), ForeignKey("users.id"), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500))
-    category: Mapped[BusinessCategory] = mapped_column(String, nullable=False)
+    category: Mapped[ProfileType] = mapped_column(String, nullable=False)
     website: Mapped[Optional[str]] = mapped_column(String)
     address: Mapped[Optional[str]] = mapped_column(String(200))
     city: Mapped[Optional[str]] = mapped_column(String(50))
@@ -39,7 +36,7 @@ class Business(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
     # Relationship back to User
-    user: Mapped["User"] = relationship("User", back_populates="business")
+    user: Mapped["User"] = relationship("User", back_populates="profile")
     
     def __repr__(self):
-        return f"<Business(id={self.id}, name={self.name}, category={self.category})>"
+        return f"<Profile(id={self.id}, name={self.name}, category={self.category})>"

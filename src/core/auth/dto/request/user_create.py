@@ -11,8 +11,6 @@ class UserCreateRequest(BaseModel):
     phone: Optional[str] = Field(None, min_length=10, max_length=15)
     profile_image_url: Optional[str] = None
     bio: Optional[str] = Field(None, max_length=500)
-    location_id: Optional[int] = None
-    user_role_id: Optional[int] = None  # Or default to a basic role if needed
 
     # Optional: Add validation for phone number format
     @validator('phone')
