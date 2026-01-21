@@ -9,7 +9,7 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     phone: Optional[str]
-    profile_image_url: Optional[str]
+    profile_picture: Optional[str]
     bio: Optional[str]
     created_at: datetime
     status: str

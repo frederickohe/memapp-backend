@@ -12,6 +12,7 @@ from core.auth.service.sessiondriver import SessionDriver
 from core.exceptions.AuthException import InvalidCredentialsError
 from core.exceptions.UserException import UserAlreadyExistsError
 from core.user.model.User import User
+from core.otp.service.otpservice import OTPService
 import secrets
 import string
 import logging
@@ -20,19 +21,19 @@ logger = logging.getLogger(__name__)
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 class AuthService:
     def __init__(self, db: Session):
         self.db = db
         self.session_driver = SessionDriver()
+        self.otp_service = OTPService(db)
 
     def hash_password(self, password: str) -> str:
         """Hash a plain-text password."""
         return pwd_context.hash(password)
 
-    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+    def verify_password(self, plain_password: str, hashed_pin: str) -> bool:
         """Verify a plain-text password against a hashed one."""
-        return pwd_context.verify(plain_password, hashed_password)
+        return pwd_context.verify(plain_password, hashed_pin)
 
     def generate_user_id(self):
         """Generate a random user ID with alphanumeric characters."""
@@ -62,8 +63,9 @@ class AuthService:
             username=request.username,
             first_name=request.first_name,
             last_name=request.last_name,
+            phone=request.phone,
             email=request.email,
-            hashed_password=self.hash_password(request.password),
+            hashed_pin=self.hash_password(request.pin),
             created_at=datetime.now(timezone.utc),
         )
 
@@ -71,128 +73,51 @@ class AuthService:
         self.db.commit()
         self.db.refresh(db_user)
 
+        # Send OTP to phone for verification
+        otp_result = self.otp_service.send_otp_phone(request.phone)
+        
         return {
-            "message": "User account created successfully",
+            "message": "User account created successfully. Please verify your phone number with the OTP sent to you.",
             "user_id": db_user.id,
+            "verification_required": True,
+            "otp_sent": otp_result.success
         }
 
-    def authenticate_user(self, email: str, password: str):
-        db_user = self.db.query(User).filter(User.email == email).first()
-
-        if not db_user:
-            raise InvalidCredentialsError()
-
-        if not self.verify_password(password, db_user.hashed_password):
-            raise InvalidCredentialsError()
-
-        return db_user
-
-    def signin(self, user: BaseModel):
-        """Login the user by generating a JWT token and returning tokens."""
-        db_user = self.authenticate_user(user.email, user.password)
-
-        access_token = self.session_driver.create_access_token(
-            data={"sub": db_user.email},
-            expires_delta=timedelta(minutes=self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
+    def validate_user(self, phone: str):
         
-        refresh_token = self.session_driver.create_refresh_token(
-            data={"sub": db_user.email}
-        )
+        db_user = self.db.query(User).filter(User.phone == phone).first()
 
-        self.session_driver.store_tokens(access_token, refresh_token)
+        # return True if user exists, else False
+        return db_user is not None
 
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "Login successful",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-            },
-        )
-
-    def signout(self, token: str):
-        try:
-            # Decode without expiration check
-            payload = jwt.decode(
-                token, 
-                self.session_driver.SECRET_KEY, 
-                algorithms=[self.session_driver.ALGORITHM],
-                options={"verify_exp": False}
-            )
-            email = payload.get("sub")
-            
-            if not email:
-                raise HTTPException(status_code=401, detail="Invalid token")
-            
-            # Triple protection:
-            # 1. Blacklist this specific token
-            self.session_driver.blacklist_token(token)
-            
-            # 2. Remove token storage
-            self.session_driver.remove_tokens(email)
-            
-            return JSONResponse(
-                status_code=200,
-                content={"message": "Logout successful"}
-            )
-        except Exception as e:
-            logger.error(f"Logout error: {str(e)}")
-            # Still attempt to blacklist
-            self.session_driver.blacklist_token(token)
-            raise HTTPException(status_code=500, detail="Logout processing error")
-
-    def refresh_tokens(self, refresh_token: str):
-        """Refresh access token using refresh token"""
-        try:
-            new_access_token = self.session_driver.refresh_access_token(refresh_token)
-            
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "access_token": new_access_token,
-                    "token_type": "bearer",
-                    "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-                }
-            )
-        except HTTPException as e:
-            raise e
-        except Exception as e:
-            logger.error(f"Error refreshing token: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+    def verify_and_enable_user(self, phone: str, otp: str):
+        """Verify OTP and enable user account"""
+        # Validate OTP
+        is_valid = self.otp_service.validate_otp(phone=phone, otp=otp)
         
-    def signout_all(self, token: str):
-        """Logout the user from all devices by invalidating all their tokens"""
-        try:
-            payload = jwt.decode(
-                token, 
-                self.session_driver.SECRET_KEY, 
-                algorithms=[self.session_driver.ALGORITHM],
-                options={"verify_exp": False}
-            )
-            email = payload.get("sub")
-            
-            if not email:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token"
-                )
-            
-            # Triple protection:
-            # 1. Blacklist this specific token
-            self.session_driver.blacklist_token(token)
-            
-            # 2. Remove token storage
-            self.session_driver.remove_tokens(email)
-            
-            return JSONResponse(
-                status_code=200,
-                content={"message": "Logged out from all devices"}
-            )
-        except jwt.PyJWTError as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
+        if not is_valid:
+            return {
+                "success": False,
+                "message": "Invalid or expired OTP"
+            }
+        
+        # Find user by phone
+        user = self.db.query(User).filter(User.phone == phone).first()
+        
+        if not user:
+            return {
+                "success": False,
+                "message": "User not found"
+            }
+        
+        # Enable user account
+        user.enabled = True
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(user)
+        
+        return {
+            "success": True,
+            "message": "Phone number verified successfully. Your account is now active.",
+            "user_id": user.id
+        }

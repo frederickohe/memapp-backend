@@ -1,10 +1,11 @@
-from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey, Boolean, Enum
+from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.notification.model import Notification
 from utilities.dbconfig import Base
 from datetime import datetime
 from typing import List, Optional
+from enum import Enum as PyEnum
 
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -13,7 +14,7 @@ from core.auth.model.password_reset_token import PasswordResetToken
 from core.auth.model.refreshtoken import RefreshToken
 
 
-class UserStatus(str, Enum):
+class UserStatus(str, PyEnum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     DELETED = "DELETED"
@@ -24,14 +25,23 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, primary_key=True)
     username: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    hashed_pin: Mapped[str] = mapped_column(String, nullable=False)
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     last_name: Mapped[str] = mapped_column(String, nullable=False)
     phone: Mapped[Optional[str]] = mapped_column(String)
     
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    profile_image_url: Mapped[Optional[str]] = mapped_column(String)
-    bio: Mapped[Optional[str]] = mapped_column(String)
+    ghana_card_number: Mapped[Optional[str]] = mapped_column(String, unique=True)
+    date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    age: Mapped[Optional[int]] = mapped_column(Integer)
+    income_level: Mapped[Optional[str]] = mapped_column(String)
+    occupation: Mapped[Optional[str]] = mapped_column(String)
+    location: Mapped[Optional[str]] = mapped_column(String)
+    financial_goals: Mapped[Optional[str]] = mapped_column(String)
+    risk_tolerance: Mapped[Optional[str]] = mapped_column(String)
+    ghana_card: Mapped[Optional[str]] = mapped_column(String)
+
+
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     status: Mapped[UserStatus] = mapped_column(String, nullable=False, default=UserStatus.ACTIVE)
@@ -74,7 +84,7 @@ class User(Base):
     # For security/authentication purposes
     @property
     def password(self):
-        return self.hashed_password
+        return self.hashed_pin
 
     @property
     def is_active(self):

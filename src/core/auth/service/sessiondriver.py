@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 from typing import Dict, Optional
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -16,7 +17,10 @@ class TokenData(BaseModel):
 
 class SessionDriver:
     def __init__(self):
-        # Initialize Redis connection
+        # Get Redis host from environment variables (default to 'redis' if not set)
+        redis_host = os.getenv("REDIS_HOST", "redis-1")
+        redis_port = int(os.getenv("REDIS_PORT", 6379))
+        
         self.redis_client = redis.Redis(
             host='localhost',
             port=6379,
@@ -25,9 +29,9 @@ class SessionDriver:
         )
         
         # Token configuration
-        self.SECRET_KEY = "green-secret-keeps-gamma"  # Should be in environment variables
+        self.SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
         self.ALGORITHM = "HS256"
-        self.ACCESS_TOKEN_EXPIRE_MINUTES = 15
+        self.ACCESS_TOKEN_EXPIRE_MINUTES = 35
         self.REFRESH_TOKEN_EXPIRE_DAYS = 3
         
         self.oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")

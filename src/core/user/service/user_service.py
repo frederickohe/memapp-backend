@@ -35,6 +35,13 @@ class UserService:
             first_name=user.first_name,
             last_name=user.last_name,
             is_active=user.is_active,
+            age=user.age,
+            income_level=user.income_level,
+            occupation=user.occupation,
+            financial_goals=user.financial_goals,
+            risk_tolerance=user.risk_tolerance,
+            location=user.location,
+
             created_at=user.created_at
         )
 
@@ -52,6 +59,23 @@ class UserService:
             created_at=user.created_at
         )
 
+    # get user by phone number
+    def get_user_by_phone(self, phone_number: str) -> UserResponse:
+        user = self.db.query(User).filter(User.phone == phone_number).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            phone=user.phone,
+            hashed_pin=user.hashed_pin,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            is_active=user.is_active,
+            created_at=user.created_at
+        )
+    
     def set_user_enabled_status(self, user_id: str, enabled: bool) -> MessageResponse:
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
