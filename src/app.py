@@ -19,10 +19,6 @@ from core.payments.controller.billcontroller import bill_routes
 from core.payments.controller.invoicecontroller import invoice_routes
 from core.payments.controller.paymentcontroller import payment_routes
 from core.otp.controller.otpcontroller import otp_routes
-from core.subscription.controller.subscription_controller import subscription_routes
-from core.webhooks.controller.webhookscontroller import webhooks_routes
-from core.beneficiaries.controller.beneficiary_controller import beneficiary_routes
-from core.nlu.controller.nlucontroller import nlu_routes
 
 from utilities.dbconfig import Base, engine
 from config import settings
@@ -54,7 +50,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.SERVICE_NAME,
     version="1.0",
-    description="""**Lebe Core API** An AI focused app infrastructure deployed with python.
+    description="""**Ymca App API** An AI focused app infrastructure deployed with python.
 
     Default Endpoints:
     - Authentication
@@ -64,8 +60,8 @@ app = FastAPI(
     """,
     contact={
         "name": "API Support",
-        "url": "http://support@lebe.com",
-        "email": "mail@lebe.com",
+        "url": "http://support@ymca.com",
+        "email": "mail@ymca.com",
     },
     license_info={
         "name": "MIT",
@@ -106,10 +102,6 @@ app.include_router(payment_routes, prefix="/api/v1/payment", tags=["Payment Rout
 app.include_router(bill_routes, prefix="/api/v1/bill", tags=["Billing Routes"])
 app.include_router(invoice_routes, prefix="/api/v1/invoice", tags=["Invoice Routes"])
 app.include_router(otp_routes, prefix="/api/v1/otp", tags=["OTP Routes"])
-app.include_router(subscription_routes, prefix="/api/v1/subscription", tags=["Subscription Routes"])
-app.include_router(beneficiary_routes, prefix="/api/v1/beneficiaries", tags=["Beneficiary Routes"])
-app.include_router(webhooks_routes, prefix="/api/v1/webhooks", tags=["Webhooks Routes"])
-app.include_router(nlu_routes, prefix="/api/v1/nlu", tags=["NLU Routes"])
 
 # JWT Authentication Settings
 

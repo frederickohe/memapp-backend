@@ -1223,7 +1223,7 @@ class PaymentService:
         """
         import os
         from core.webhooks.service.whatsapp_service import WhatsAppService
-        from core.nlu.nlu import LebeNLUSystem
+        from core.nlu.nlu import ymcaNLUSystem
         from utilities.phone_utils import normalize_ghana_phone_number
 
         try:
@@ -1247,7 +1247,7 @@ class PaymentService:
 
                 try:
                     # Use NLU's receipt generation method
-                    nlu_system = LebeNLUSystem()
+                    nlu_system = ymcaNLUSystem()
                     receipt_url = nlu_system.generate_receipt_after_payment(
                         transaction_id=payment.transaction_id,
                         user_id=payment.sender_phone,
