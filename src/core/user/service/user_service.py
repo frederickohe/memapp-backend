@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 from core.user.dto.request.user_filter_request import UserFilterRequest
 from core.user.dto.response.message_response import MessageResponse
 from core.user.dto.response.user_response import UserResponse
+from core.user.dto.request.user_update_request import UserUpdateRequest
 
 # Service Class
 class UserService:
@@ -192,3 +193,33 @@ class UserService:
                 ) for user in users
             ]
         }
+
+        def update_user(self, user_id: str, payload: UserUpdateRequest) -> UserResponse:
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            data = payload.dict(exclude_unset=True)
+            for key, value in data.items():
+                if hasattr(user, key):
+                    setattr(user, key, value)
+
+            user.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(user)
+            return self.get_user_by_id(user.id)
+
+        def update_current_user(self, email: str, payload: UserUpdateRequest) -> UserResponse:
+            user = self.db.query(User).filter(User.email == email).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            data = payload.dict(exclude_unset=True)
+            for key, value in data.items():
+                if hasattr(user, key):
+                    setattr(user, key, value)
+
+            user.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(user)
+            return self.get_current_user(email)
