@@ -41,6 +41,11 @@ This project is a project aimed at [brief project description]. This README prov
     python src/main.py
     ```
 
+6. **Run DB Migrations**
+    alembic revision --autogenerate -m "Initial migration"
+
+    alembic upgrade head
+
 ## Contributing
 
 Please read `CONTRIBUTING.md` for details on our code of conduct, and the process for submitting pull requests.
