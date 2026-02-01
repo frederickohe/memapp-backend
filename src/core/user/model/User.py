@@ -1,7 +1,7 @@
 from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey, Boolean, Date, Enum as SQLEnum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from core.notification.model import Notification
+from core.notification.model.Notification import Notification
 from core.histories.model.history import History
 from utilities.dbconfig import Base
 from datetime import datetime, date
@@ -104,13 +104,6 @@ class User(Base):
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
     
-    # Profile relationship (one-to-one)
-    profile: Mapped[Optional["Profile"]] = relationship(
-        "Profile", 
-        back_populates="user",
-        cascade="all, delete-orphan",
-        uselist=False
-    )
     
     # Notifications relationship (one-to-many)
     notifications: Mapped[List["Notification"]] = relationship(
