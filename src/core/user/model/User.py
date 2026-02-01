@@ -1,9 +1,10 @@
-from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import JSON, Column, Integer, String, DateTime, ForeignKey, Boolean, Date, Enum as SQLEnum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.notification.model import Notification
+from core.histories.model.history import History
 from utilities.dbconfig import Base
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 from enum import Enum as PyEnum
 
@@ -18,28 +19,66 @@ class UserStatus(str, PyEnum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     DELETED = "DELETED"
+
+class Gender(str, PyEnum):
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+    OTHER = "OTHER"
+
+class MembershipType(str, PyEnum):
+    BASIC = "BASIC"
+    PREMIUM = "PREMIUM"
+    VIP = "VIP"
+    STANDARD = "STANDARD"
+
+class BooleanEnum(str, PyEnum):
+    YES = "YES"
+    NO = "NO"
     
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, primary_key=True)
-    username: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    fullname: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    hashed_pin: Mapped[str] = mapped_column(String, nullable=False)
-    first_name: Mapped[str] = mapped_column(String, nullable=False)
-    last_name: Mapped[str] = mapped_column(String, nullable=False)
-    phone: Mapped[Optional[str]] = mapped_column(String)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    phone_number: Mapped[Optional[str]] = mapped_column(String)
     
-    ghana_card_number: Mapped[Optional[str]] = mapped_column(String, unique=True)
-    date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    age: Mapped[Optional[int]] = mapped_column(Integer)
-    income_level: Mapped[Optional[str]] = mapped_column(String)
-    occupation: Mapped[Optional[str]] = mapped_column(String)
-    location: Mapped[Optional[str]] = mapped_column(String)
-    financial_goals: Mapped[Optional[str]] = mapped_column(String)
-    risk_tolerance: Mapped[Optional[str]] = mapped_column(String)
-    ghana_card: Mapped[Optional[str]] = mapped_column(String)
-
+    # Personal Information
+    nationality: Mapped[Optional[str]] = mapped_column(String(100))
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date)
+    gender: Mapped[Optional[str]] = mapped_column(String, default=None)
+    address: Mapped[Optional[str]] = mapped_column(String(300))
+    profile_picture_url: Mapped[Optional[str]] = mapped_column(String(200))
+    
+    # Membership Information
+    membership_type: Mapped[Optional[str]] = mapped_column(String, default=None)
+    current_branch: Mapped[Optional[str]] = mapped_column(String(100))
+    member_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
+    month_dues_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
+    year_affiliation_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
+    
+    
+    # Professional Information
+    occupation: Mapped[Optional[str]] = mapped_column(String(100))
+    organization_workplace: Mapped[Optional[str]] = mapped_column(String(200))
+    skills: Mapped[Optional[List[str]]] = mapped_column(JSON)
+    experiences: Mapped[Optional[List[str]]] = mapped_column(JSON)
+    
+    # Connected Users (other users in the system)
+    connected_users: Mapped[Optional[List[str]]] = mapped_column(JSON)
+    
+    # Social Media Profiles
+    facebook_url: Mapped[Optional[str]] = mapped_column(String(200))
+    whatsapp_number: Mapped[Optional[str]] = mapped_column(String(20))
+    linkedin_url: Mapped[Optional[str]] = mapped_column(String(200))
+    twitter_url: Mapped[Optional[str]] = mapped_column(String(200))
+    instagram_url: Mapped[Optional[str]] = mapped_column(String(200))
+    
+    # Notification Preferences
+    profile_sharing: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    in_app_notification: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+    sms_notification: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -80,11 +119,19 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="dynamic"  # Using dynamic loading for potentially large collections
     )
+    
+    # Financial Records relationship (one-to-many)
+    financial_records: Mapped[List["History"]] = relationship(
+        "History",
+        foreign_keys="History.user_id",
+        cascade="all, delete-orphan",
+        lazy="dynamic"  # Using dynamic loading for potentially large collections
+    )
 
     # For security/authentication purposes
     @property
     def password(self):
-        return self.hashed_pin
+        return self.hashed_password
 
     @property
     def is_active(self):

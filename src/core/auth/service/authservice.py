@@ -31,9 +31,9 @@ class AuthService:
         """Hash a plain-text password."""
         return pwd_context.hash(password)
 
-    def verify_password(self, plain_password: str, hashed_pin: str) -> bool:
+    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a plain-text password against a hashed one."""
-        return pwd_context.verify(plain_password, hashed_pin)
+        return pwd_context.verify(plain_password, hashed_password)
 
     def generate_user_id(self):
         """Generate a random user ID with alphanumeric characters."""
@@ -45,7 +45,7 @@ class AuthService:
         existing_user = (
             self.db.query(User)
             .filter(
-                (User.email == request.email) | (User.username == request.username)
+                (User.email == request.email) | (User.fullname == request.fullname)
             )
             .first()
         )
@@ -54,18 +54,43 @@ class AuthService:
             if existing_user.email == request.email:
                 raise UserAlreadyExistsError(field="email")
             else:
-                raise UserAlreadyExistsError(field="username")
+                raise UserAlreadyExistsError(field="fullname")
             
         user_id = self.generate_user_id()
 
         db_user = User(
             id=user_id,
-            username=request.username,
-            first_name=request.first_name,
-            last_name=request.last_name,
-            phone=request.phone,
+            fullname=request.fullname,
+            phone_number=request.phone_number,
             email=request.email,
-            hashed_pin=self.hash_password(request.pin),
+            hashed_password=self.hash_password(request.password),
+            profile_picture_url=request.profile_picture_url,
+            
+            nationality=request.nationality,
+            date_of_birth=request.date_of_birth,
+            gender=request.gender,
+            address=request.address,
+            
+            membership_type=request.membership_type,
+            current_branch=request.current_branch,
+            member_id=request.member_id,
+            
+            facebook_url=request.facebook_url,
+            whatsapp_number=request.whatsapp_number,
+            linkedin_url=request.linkedin_url,
+            twitter_url=request.twitter_url,
+            instagram_url=request.instagram_url,
+            
+            
+            occupation=request.occupation,
+            organization_workplace=request.organization_workplace,
+            skills=request.skills,
+            experiences=request.experiences,
+            
+            profile_sharing=request.profile_sharing,
+            in_app_notification=request.in_app_notification,
+            sms_notification=request.sms_notification,
+            
             created_at=datetime.now(timezone.utc),
         )
 
@@ -74,7 +99,7 @@ class AuthService:
         self.db.refresh(db_user)
 
         # Send OTP to phone for verification
-        otp_result = self.otp_service.send_otp_phone(request.phone)
+        otp_result = self.otp_service.send_otp_phone(request.phone_number)
         
         return {
             "message": "User account created successfully. Please verify your phone number with the OTP sent to you.",
@@ -85,7 +110,7 @@ class AuthService:
 
     def validate_user(self, phone: str):
         
-        db_user = self.db.query(User).filter(User.phone == phone).first()
+        db_user = self.db.query(User).filter(User.phone_number == phone).first()
 
         # return True if user exists, else False
         return db_user is not None
@@ -102,7 +127,7 @@ class AuthService:
             }
         
         # Find user by phone
-        user = self.db.query(User).filter(User.phone == phone).first()
+        user = self.db.query(User).filter(User.phone_number == phone).first()
         
         if not user:
             return {

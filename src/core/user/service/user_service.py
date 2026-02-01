@@ -30,19 +30,41 @@ class UserService:
             raise HTTPException(status_code=404, detail="User not found")
         return UserResponse(
             id=user.id,
-            username=user.username,
+            fullname=user.fullname,
             email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            is_active=user.is_active,
-            age=user.age,
-            income_level=user.income_level,
+            phone_number=user.phone_number,
+            
+            nationality=user.nationality,
+            date_of_birth=user.date_of_birth,
+            gender=user.gender,
+            address=user.address,
+            profile_picture_url=user.profile_picture_url,
+            
+            membership_type=user.membership_type,
+            current_branch=user.current_branch,
+            member_id=user.member_id,
+            month_dues_paid_status=user.month_dues_paid_status,
+            year_affiliation_paid_status=user.year_affiliation_paid_status,
+            
             occupation=user.occupation,
-            financial_goals=user.financial_goals,
-            risk_tolerance=user.risk_tolerance,
-            location=user.location,
-
-            created_at=user.created_at
+            organization_workplace=user.organization_workplace,
+            skills=user.skills,
+            experiences=user.experiences,
+            
+            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            
+            facebook_url=user.facebook_url,
+            whatsapp_number=user.whatsapp_number,
+            linkedin_url=user.linkedin_url,
+            twitter_url=user.twitter_url,
+            instagram_url=user.instagram_url,
+            
+            profile_sharing=user.profile_sharing,
+            in_app_notification=user.in_app_notification,
+            sms_notification=user.sms_notification,
+            
+            created_at=user.created_at,
+            updated_at=user.updated_at
         )
 
     def get_user_by_id(self, user_id: str) -> UserResponse:
@@ -51,29 +73,85 @@ class UserService:
             raise HTTPException(status_code=404, detail="User not found")
         return UserResponse(
             id=user.id,
-            username=user.username,
+            fullname=user.fullname,
             email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            is_active=user.is_active,
-            created_at=user.created_at
+            phone_number=user.phone_number,
+            
+            nationality=user.nationality,
+            date_of_birth=user.date_of_birth,
+            gender=user.gender,
+            address=user.address,
+            profile_picture_url=user.profile_picture_url,
+            
+            membership_type=user.membership_type,
+            current_branch=user.current_branch,
+            member_id=user.member_id,
+            month_dues_paid_status=user.month_dues_paid_status,
+            year_affiliation_paid_status=user.year_affiliation_paid_status,
+            
+            occupation=user.occupation,
+            organization_workplace=user.organization_workplace,
+            skills=user.skills,
+            experiences=user.experiences,
+            
+            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            
+            facebook_url=user.facebook_url,
+            whatsapp_number=user.whatsapp_number,
+            linkedin_url=user.linkedin_url,
+            twitter_url=user.twitter_url,
+            instagram_url=user.instagram_url,
+            
+            profile_sharing=user.profile_sharing,
+            in_app_notification=user.in_app_notification,
+            sms_notification=user.sms_notification,
+            
+            created_at=user.created_at,
+            updated_at=user.updated_at
         )
 
     # get user by phone number
     def get_user_by_phone(self, phone_number: str) -> UserResponse:
-        user = self.db.query(User).filter(User.phone == phone_number).first()
+        user = self.db.query(User).filter(User.phone_number == phone_number).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return UserResponse(
             id=user.id,
-            username=user.username,
+            fullname=user.fullname,
             email=user.email,
-            phone=user.phone,
-            hashed_pin=user.hashed_pin,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            is_active=user.is_active,
-            created_at=user.created_at
+            phone_number=user.phone_number,
+            
+            nationality=user.nationality,
+            date_of_birth=user.date_of_birth,
+            gender=user.gender,
+            address=user.address,
+            profile_picture_url=user.profile_picture_url,
+            
+            membership_type=user.membership_type,
+            current_branch=user.current_branch,
+            member_id=user.member_id,
+            month_dues_paid_status=user.month_dues_paid_status,
+            year_affiliation_paid_status=user.year_affiliation_paid_status,
+            
+            occupation=user.occupation,
+            organization_workplace=user.organization_workplace,
+            skills=user.skills,
+            experiences=user.experiences,
+            
+            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            
+            facebook_url=user.facebook_url,
+            whatsapp_number=user.whatsapp_number,
+            linkedin_url=user.linkedin_url,
+            twitter_url=user.twitter_url,
+            instagram_url=user.instagram_url,
+            
+            profile_sharing=user.profile_sharing,
+            in_app_notification=user.in_app_notification,
+            sms_notification=user.sms_notification,
+            
+            created_at=user.created_at,
+            updated_at=user.updated_at
         )
     
     def set_user_enabled_status(self, user_id: str, enabled: bool) -> MessageResponse:
@@ -105,21 +183,12 @@ class UserService:
             "users": [
                 UserResponse(
                     id=user.id,
-                    username=user.username,
+                    fullname=user.fullname,
                     email=user.email,
-                    first_name=user.first_name,
-                    last_name=user.last_name,
+                    phone_number=user.phone_number,
                     is_active=user.is_active,
-                    created_at=user.created_at
+                    created_at=user.created_at,
+                    updated_at=user.updated_at  
                 ) for user in users
             ]
         }
-
-    def update_user_role(self, user_id: str, role_id: str) -> MessageResponse:
-        user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        # Assuming you have role update logic here
-        user.role_id = role_id
-        self.db.commit()
-        return MessageResponse(message="User role updated successfully")
