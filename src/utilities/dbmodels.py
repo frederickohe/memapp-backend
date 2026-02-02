@@ -18,6 +18,7 @@ _model_modules = [
 	"core.histories.model.history",
 	"core.auth.model.refreshtoken",
 	"core.auth.model.password_reset_token",
+	"core.news.model.news",
 ]
 
 

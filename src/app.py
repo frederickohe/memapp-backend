@@ -15,6 +15,9 @@ from core.user.controller.usercontroller import user_routes
 from core.cloudstorage.controller.storagecontoller import storage_routes
 from core.notification.controller.notificationcontroller import notification_routes
 from core.otp.controller.otpcontroller import otp_routes
+from core.news.controller.newscontroller import news_routes
+from core.forms.controller.formcontroller import form_routes
+from core.programs.controller.programcontroller import program_routes
 
 from utilities.dbconfig import Base, engine
 from config import settings
@@ -89,6 +92,9 @@ app.include_router(auth_routes, prefix="/api/v1/auth", tags=["Auth Routes"])
 app.include_router(user_routes, prefix="/api/v1/user", tags=["User Routes"])
 app.include_router(notification_routes, prefix="/api/v1/notification", tags=["Notification Routes"])
 app.include_router(otp_routes, prefix="/api/v1/otp", tags=["OTP Routes"])
+app.include_router(news_routes, prefix="/api/v1/news", tags=["News Routes"])
+app.include_router(form_routes, tags=["Forms Routes"])
+app.include_router(program_routes, tags=["Programs Routes"])
 
 # JWT Authentication Settings
 
