@@ -48,6 +48,8 @@ class ProgramUpdateRequest(BaseModel):
 class ProgramEnrollmentRequest(BaseModel):
     """Request model for enrolling a user in a program"""
     user_id: str
+    form_id: str  # ID of the form to submit for enrollment
+    form_data: Dict[str, Any]  # The form submission data
     notes: Optional[str] = None
     
     class Config:
@@ -55,8 +57,7 @@ class ProgramEnrollmentRequest(BaseModel):
 
 
 class ProgramEnrollmentUpdateRequest(BaseModel):
-    """Request model for updating program enrollment"""
-    status: Optional[str] = None  # ACTIVE, DROPPED, COMPLETED, PENDING
+    """Request model for updating form response data"""
     completion_percentage: Optional[int] = None
     notes: Optional[str] = None
     

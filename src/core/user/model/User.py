@@ -116,7 +116,7 @@ class User(Base):
     # Financial Records relationship (one-to-many)
     financial_records: Mapped[List["History"]] = relationship(
         "History",
-        foreign_keys="History.user_id",
+        back_populates="user",
         cascade="all, delete-orphan",
         lazy="dynamic"  # Using dynamic loading for potentially large collections
     )

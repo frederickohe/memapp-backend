@@ -5,9 +5,9 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
 from fastapi import HTTPException, status
-from core.programs.model.program import Program, ProgramEnrollment, ProgramStatus, program_participants_association, program_forms_association
+from core.programs.model.program import Program, ProgramStatus, program_participants_association, program_forms_association
 from core.user.model.User import User
-from core.forms.model.Form import Form
+from core.forms.model.Form import Form, FormResponse
 from core.programs.dto.response.programresponse import (
     ProgramResponse,
     ProgramDetailResponse,
@@ -28,10 +28,6 @@ class ProgramService:
     def _generate_program_id(self) -> str:
         """Generate a unique program ID"""
         return "PROG_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
-    
-    def _generate_enrollment_id(self) -> str:
-        """Generate a unique enrollment ID"""
-        return "ENRL_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     
     def _get_program_status(self, program: Program) -> ProgramStatus:
         """Determine program status based on dates"""
@@ -235,9 +231,11 @@ class ProgramService:
         self,
         program_id: str,
         user_id: str,
+        form_id: str,
+        form_data: Dict[str, Any],
         notes: Optional[str] = None
     ) -> ProgramEnrollmentResponse:
-        """Enroll a user in a program"""
+        """Enroll a user in a program by submitting a program form"""
         # Verify program exists
         program = self.db.query(Program).filter(Program.id == program_id).first()
         if not program:
@@ -249,70 +247,77 @@ class ProgramService:
         if not program.allow_registration:
             raise HTTPException(status_code=400, detail="Registration is not allowed for this program")
         
+        # Verify form exists and belongs to the program
+        form = self.db.query(Form).filter(Form.id == form_id).first()
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        
+        if form not in program.forms:
+            raise HTTPException(status_code=400, detail="Form is not associated with this program")
+        
         # Verify user exists
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if user is already enrolled
-        existing_enrollment = self.db.query(ProgramEnrollment).filter(
+        # Check if user already has a form response for this form
+        existing_response = self.db.query(FormResponse).filter(
             and_(
-                ProgramEnrollment.program_id == program_id,
-                ProgramEnrollment.user_id == user_id
+                FormResponse.form_id == form_id,
+                FormResponse.user_id == user_id
             )
         ).first()
         
-        if existing_enrollment:
-            raise HTTPException(status_code=400, detail="User is already enrolled in this program")
+        if existing_response:
+            raise HTTPException(status_code=400, detail="User has already submitted this form")
         
-        # Check capacity
-        if program.capacity:
-            current_count = self.db.query(ProgramEnrollment).filter(
-                and_(
-                    ProgramEnrollment.program_id == program_id,
-                    ProgramEnrollment.status == 'ACTIVE'
-                )
-            ).count()
-            if current_count >= program.capacity:
-                raise HTTPException(status_code=400, detail="Program is at full capacity")
-        
-        # Create enrollment record
-        enrollment = ProgramEnrollment(
-            id=self._generate_enrollment_id(),
-            program_id=program_id,
+        # Create form response (enrollment is now a form submission)
+        form_response = FormResponse(
+            id="FR_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)),
+            form_id=form_id,
             user_id=user_id,
-            status='ACTIVE',
-            notes=notes
+            data=form_data,
+            notes=notes,
+            is_submitted=True
         )
         
         # Add user to participants if not already there
         if user not in program.participants:
             program.participants.append(user)
         
-        self.db.add(enrollment)
+        self.db.add(form_response)
         self.db.commit()
-        self.db.refresh(enrollment)
+        self.db.refresh(form_response)
         
-        return ProgramEnrollmentResponse.from_orm(enrollment)
+        return self._convert_form_response_to_enrollment_dto(form_response)
     
     def unenroll_user(self, program_id: str, user_id: str) -> Dict[str, str]:
-        """Unenroll a user from a program"""
-        enrollment = self.db.query(ProgramEnrollment).filter(
+        """Unenroll a user from a program by removing their form responses for the program's forms"""
+        # Verify program exists
+        program = self.db.query(Program).filter(Program.id == program_id).first()
+        if not program:
+            raise HTTPException(status_code=404, detail="Program not found")
+        
+        if not program.forms:
+            raise HTTPException(status_code=400, detail="Program has no forms")
+        
+        # Get all form IDs for this program
+        form_ids = [form.id for form in program.forms]
+        
+        # Delete form responses for this user for the program's forms
+        deleted_count = self.db.query(FormResponse).filter(
             and_(
-                ProgramEnrollment.program_id == program_id,
-                ProgramEnrollment.user_id == user_id
+                FormResponse.form_id.in_(form_ids),
+                FormResponse.user_id == user_id
             )
-        ).first()
-        
-        if not enrollment:
-            raise HTTPException(status_code=404, detail="Enrollment not found")
-        
-        enrollment.status = 'DROPPED'
-        enrollment.dropped_at = datetime.utcnow()
+        ).delete()
         
         self.db.commit()
         
-        return {"message": "User unenrolled from program successfully"}
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User has no submissions for this program's forms")
+        
+        return {"message": f"User unenrolled from program successfully. {deleted_count} form response(s) removed."}
     
     def get_program_enrollments(
         self,
@@ -321,7 +326,7 @@ class ProgramService:
         page: int = 1,
         size: int = 10
     ) -> ProgramEnrollmentsListResponse:
-        """Get all enrollments for a program (admin only)"""
+        """Get all enrollments (form responses) for a program (admin only)"""
         # Verify program exists and user owns it
         program = self.db.query(Program).filter(Program.id == program_id).first()
         if not program:
@@ -330,20 +335,26 @@ class ProgramService:
         if program.created_by != created_by:
             raise HTTPException(status_code=403, detail="Not authorized to view enrollments for this program")
         
-        # Get enrollments
-        query = self.db.query(ProgramEnrollment).filter(ProgramEnrollment.program_id == program_id)
+        if not program.forms:
+            raise HTTPException(status_code=400, detail="Program has no forms")
+        
+        # Get all form IDs for this program
+        form_ids = [form.id for form in program.forms]
+        
+        # Get form responses for these forms
+        query = self.db.query(FormResponse).filter(FormResponse.form_id.in_(form_ids))
         
         # Sort by most recent first
-        query = query.order_by(desc(ProgramEnrollment.enrolled_at))
+        query = query.order_by(desc(FormResponse.created_at))
         
         # Get total count
         total = query.count()
         
         # Apply pagination
         skip = (page - 1) * size
-        enrollments = query.offset(skip).limit(size).all()
+        form_responses = query.offset(skip).limit(size).all()
         
-        enrollment_dtos = [ProgramEnrollmentResponse.from_orm(e) for e in enrollments]
+        enrollment_dtos = [self._convert_form_response_to_enrollment_dto(fr) for fr in form_responses]
         
         return ProgramEnrollmentsListResponse(
             program_id=program_id,
@@ -360,19 +371,22 @@ class ProgramService:
         page: int = 1,
         size: int = 10
     ) -> UserProgramsResponse:
-        """Get all programs a user is enrolled in"""
+        """Get all programs a user is enrolled in (has submitted forms for)"""
         # Verify user exists
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Get enrollments for this user
+        # Get programs where user has submitted form responses
         query = self.db.query(Program).join(
-            ProgramEnrollment,
-            Program.id == ProgramEnrollment.program_id
+            Form,
+            Program.forms.any(Form.id == Form.id)
+        ).join(
+            FormResponse,
+            Form.id == FormResponse.form_id
         ).filter(
-            ProgramEnrollment.user_id == user_id
-        )
+            FormResponse.user_id == user_id
+        ).distinct()
         
         query = query.order_by(desc(Program.created_at))
         
@@ -413,14 +427,13 @@ class ProgramService:
     
     def update_enrollment_status(
         self,
-        enrollment_id: str,
+        form_response_id: str,
         program_id: str,
         created_by: str,
-        status: Optional[str] = None,
         completion_percentage: Optional[int] = None,
         notes: Optional[str] = None
     ) -> ProgramEnrollmentResponse:
-        """Update enrollment status (admin only)"""
+        """Update form response/enrollment data (admin only)"""
         # Verify program owner
         program = self.db.query(Program).filter(Program.id == program_id).first()
         if not program:
@@ -429,34 +442,28 @@ class ProgramService:
         if program.created_by != created_by:
             raise HTTPException(status_code=403, detail="Not authorized")
         
-        # Get enrollment
-        enrollment = self.db.query(ProgramEnrollment).filter(
-            ProgramEnrollment.id == enrollment_id
+        # Get form response
+        form_response = self.db.query(FormResponse).filter(
+            FormResponse.id == form_response_id
         ).first()
         
-        if not enrollment:
-            raise HTTPException(status_code=404, detail="Enrollment not found")
+        if not form_response:
+            raise HTTPException(status_code=404, detail="Form response not found")
+        
+        # Verify form belongs to program
+        if form_response.form not in program.forms:
+            raise HTTPException(status_code=403, detail="Form response does not belong to this program")
         
         # Update fields
-        if status:
-            enrollment.status = status
-            if status == 'COMPLETED':
-                enrollment.completed_at = datetime.utcnow()
-            elif status == 'DROPPED':
-                enrollment.dropped_at = datetime.utcnow()
-        
-        if completion_percentage is not None:
-            enrollment.completion_percentage = completion_percentage
-        
         if notes is not None:
-            enrollment.notes = notes
+            form_response.notes = notes
         
-        enrollment.updated_at = datetime.utcnow()
+        form_response.updated_at = datetime.utcnow()
         
         self.db.commit()
-        self.db.refresh(enrollment)
+        self.db.refresh(form_response)
         
-        return ProgramEnrollmentResponse.from_orm(enrollment)
+        return self._convert_form_response_to_enrollment_dto(form_response)
     
     def _convert_program_to_detail_dto(self, program: Program) -> ProgramDetailResponse:
         """Convert program model to detailed DTO"""
@@ -513,4 +520,18 @@ class ProgramService:
             participants=participants_data,
             created_at=program.created_at,
             updated_at=program.updated_at
+        )
+    
+    def _convert_form_response_to_enrollment_dto(self, form_response: FormResponse) -> ProgramEnrollmentResponse:
+        """Convert form response to enrollment DTO"""
+        return ProgramEnrollmentResponse(
+            id=form_response.id,
+            program_id=None,  # Form response doesn't directly have program_id, but we can fetch from form
+            user_id=form_response.user_id,
+            status="ACTIVE",  # Form responses are always active unless deleted
+            completion_percentage=100,  # Form is complete once submitted
+            enrolled_at=form_response.created_at,
+            completed_at=form_response.created_at,  # Completed when submitted
+            dropped_at=None,
+            notes=form_response.notes
         )

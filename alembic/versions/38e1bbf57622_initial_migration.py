@@ -3,7 +3,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = 'eee5e3f84072'
+revision = '38e1bbf57622'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -97,6 +97,37 @@ def upgrade():
     sa.UniqueConstraint('id'),
     sa.UniqueConstraint('member_id')
     )
+    op.create_table('forms',
+    sa.Column('id', sa.String(length=20), nullable=False),
+    sa.Column('admin_id', sa.String(length=20), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('assignment_type', sa.String(), nullable=False),
+    sa.Column('program_id', sa.String(length=20), nullable=True),
+    sa.Column('assigned_user_id', sa.String(length=20), nullable=True),
+    sa.Column('fields', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['admin_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['assigned_user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
+    op.create_table('news',
+    sa.Column('id', sa.String(length=20), nullable=False),
+    sa.Column('admin_id', sa.String(length=20), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('content', sa.Text(), nullable=False),
+    sa.Column('summary', sa.String(length=500), nullable=True),
+    sa.Column('is_published', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('published_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['admin_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
     op.create_table('notifications',
     sa.Column('id', sa.String(length=20), nullable=False),
     sa.Column('user_id', sa.String(length=20), nullable=False),
@@ -120,6 +151,29 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('token')
     )
+    op.create_table('programs',
+    sa.Column('id', sa.String(length=20), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('starting_date', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('end_date', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('register_url', sa.String(length=500), nullable=True),
+    sa.Column('youtube_url', sa.String(length=500), nullable=True),
+    sa.Column('thumbnail_url', sa.String(length=500), nullable=True),
+    sa.Column('status', sa.String(), nullable=False),
+    sa.Column('created_by', sa.String(length=20), nullable=False),
+    sa.Column('capacity', sa.Integer(), nullable=True),
+    sa.Column('category', sa.String(length=100), nullable=True),
+    sa.Column('location', sa.String(length=200), nullable=True),
+    sa.Column('is_published', sa.Boolean(), nullable=False),
+    sa.Column('allow_registration', sa.Boolean(), nullable=False),
+    sa.Column('program_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
     op.create_table('refresh_tokens',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('token', sa.String(), nullable=False),
@@ -131,14 +185,64 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('token')
     )
+    op.create_table('form_responses',
+    sa.Column('id', sa.String(length=20), nullable=False),
+    sa.Column('form_id', sa.String(length=20), nullable=False),
+    sa.Column('user_id', sa.String(length=20), nullable=False),
+    sa.Column('data', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('is_submitted', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['form_id'], ['forms.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
+    op.create_table('news_media',
+    sa.Column('id', sa.String(length=20), nullable=False),
+    sa.Column('news_id', sa.String(length=20), nullable=False),
+    sa.Column('url', sa.String(length=500), nullable=False),
+    sa.Column('media_type', sa.String(), nullable=False),
+    sa.Column('media_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['news_id'], ['news.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
+    op.create_table('program_forms',
+    sa.Column('program_id', sa.String(length=20), nullable=False),
+    sa.Column('form_id', sa.String(length=20), nullable=False),
+    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.ForeignKeyConstraint(['form_id'], ['forms.id'], ),
+    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
+    sa.PrimaryKeyConstraint('program_id', 'form_id')
+    )
+    op.create_table('program_participants',
+    sa.Column('program_id', sa.String(length=20), nullable=False),
+    sa.Column('user_id', sa.String(length=20), nullable=False),
+    sa.Column('joined_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['program_id'], ['programs.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('program_id', 'user_id')
+    )
     # ### end Alembic commands ###
 
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('program_participants')
+    op.drop_table('program_forms')
+    op.drop_table('news_media')
+    op.drop_table('form_responses')
     op.drop_table('refresh_tokens')
+    op.drop_table('programs')
     op.drop_table('password_reset_tokens')
     op.drop_table('notifications')
+    op.drop_table('news')
+    op.drop_table('forms')
     op.drop_table('users')
     op.drop_index(op.f('ix_receipts_user_id'), table_name='receipts')
     op.drop_index(op.f('ix_receipts_transaction_id'), table_name='receipts')

@@ -18,7 +18,9 @@ _model_modules = [
 	"core.histories.model.history",
 	"core.auth.model.refreshtoken",
 	"core.auth.model.password_reset_token",
-	"core.news.model.news",
+	"core.news.model.News",
+	"core.forms.model.Form",
+	"core.programs.model.program",
 ]
 
 

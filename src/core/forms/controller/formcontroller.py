@@ -89,7 +89,7 @@ def get_current_user(authjwt: AuthJWT = Depends(validate_token), db: Session = D
 
 
 # Create router
-form_routes = APIRouter(prefix="/api/forms", tags=["Forms"])
+form_routes = APIRouter()
 
 
 # ===================== FORM MANAGEMENT ENDPOINTS (Admin Only) =====================

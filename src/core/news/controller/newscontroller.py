@@ -64,7 +64,7 @@ def check_admin_role(user: User) -> User:
 
 
 # Router
-news_routes = APIRouter(prefix="/news", tags=["News"])
+news_routes = APIRouter()
 
 
 # ============= PUBLIC ROUTES =============

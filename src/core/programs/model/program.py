@@ -103,37 +103,3 @@ class Program(Base):
     
     def __repr__(self):
         return f"<Program(id={self.id}, title={self.title}, status={self.status})>"
-
-
-class ProgramEnrollment(Base):
-    """Model for tracking detailed program enrollment information"""
-    __tablename__ = "program_enrollments"
-    
-    id: Mapped[str] = mapped_column(String(20), primary_key=True, nullable=False, unique=True)
-    
-    # Enrollment references
-    program_id: Mapped[str] = mapped_column(String(20), ForeignKey("programs.id"), nullable=False)
-    user_id: Mapped[str] = mapped_column(String(20), ForeignKey("users.id"), nullable=False)
-    
-    # Enrollment details
-    status: Mapped[str] = mapped_column(String, nullable=False, default='ACTIVE')  # ACTIVE, DROPPED, COMPLETED, PENDING
-    completion_percentage: Mapped[Optional[int]] = mapped_column(Integer, default=0)
-    
-    # Dates
-    enrolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    dropped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    
-    # Optional: Notes or metadata about enrollment
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    program: Mapped[Program] = relationship("Program")
-    user: Mapped["User"] = relationship("User")
-    
-    def __repr__(self):
-        return f"<ProgramEnrollment(id={self.id}, program_id={self.program_id}, user_id={self.user_id}, status={self.status})>"

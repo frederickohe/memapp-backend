@@ -25,8 +25,11 @@ class UserService:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_current_user(self, email: str) -> UserResponse:
-        user = self.db.query(User).filter(User.email == email).first()
+    def get_current_user(self, identifier: str) -> UserResponse:
+        # Try to find by email first, then by id as a fallback.
+        user = self.db.query(User).filter(User.email == identifier).first()
+        if not user:
+            user = self.db.query(User).filter(User.id == identifier).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return UserResponse(
@@ -63,7 +66,8 @@ class UserService:
             profile_sharing=user.profile_sharing,
             in_app_notification=user.in_app_notification,
             sms_notification=user.sms_notification,
-            
+            enabled=user.enabled,
+            status=user.status,
             created_at=user.created_at,
             updated_at=user.updated_at
         )
@@ -106,7 +110,8 @@ class UserService:
             profile_sharing=user.profile_sharing,
             in_app_notification=user.in_app_notification,
             sms_notification=user.sms_notification,
-            
+            enabled=user.enabled,
+            status=user.status,
             created_at=user.created_at,
             updated_at=user.updated_at
         )
@@ -150,7 +155,8 @@ class UserService:
             profile_sharing=user.profile_sharing,
             in_app_notification=user.in_app_notification,
             sms_notification=user.sms_notification,
-            
+            enabled=user.enabled,
+            status=user.status,
             created_at=user.created_at,
             updated_at=user.updated_at
         )
@@ -187,15 +193,18 @@ class UserService:
                     fullname=user.fullname,
                     email=user.email,
                     phone_number=user.phone_number,
-                    is_active=user.is_active,
+                    enabled=user.enabled,
+                    status=user.status,
                     created_at=user.created_at,
                     updated_at=user.updated_at  
                 ) for user in users
             ]
         }
 
-        def update_user(self, user_id: str, payload: UserUpdateRequest) -> UserResponse:
-            user = self.db.query(User).filter(User.id == user_id).first()
+    def update_user(self, email: str, payload: UserUpdateRequest) -> UserResponse:
+            # log the update attempt
+            logger.debug(f"Updating user {email} with data: {payload.dict(exclude_unset=True)}")
+            user = self.db.query(User).filter(User.email == email).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
@@ -209,7 +218,7 @@ class UserService:
             self.db.refresh(user)
             return self.get_user_by_id(user.id)
 
-        def update_current_user(self, email: str, payload: UserUpdateRequest) -> UserResponse:
+    def update_current_user(self, email: str, payload: UserUpdateRequest) -> UserResponse:
             user = self.db.query(User).filter(User.email == email).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
@@ -222,4 +231,4 @@ class UserService:
             user.updated_at = datetime.utcnow()
             self.db.commit()
             self.db.refresh(user)
-            return self.get_current_user(email)
+            return MessageResponse(message="User updated successfully")

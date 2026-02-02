@@ -90,7 +90,7 @@ def get_current_user(authjwt: AuthJWT = Depends(validate_token), db: Session = D
 
 
 # Create router
-program_routes = APIRouter(prefix="/api/programs", tags=["Programs"])
+program_routes = APIRouter()
 
 
 # ===================== PROGRAM MANAGEMENT ENDPOINTS (Admin Only) =====================
@@ -222,12 +222,14 @@ async def enroll_in_program(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Enroll in a program"""
+    """Enroll in a program by submitting a form"""
     service = ProgramService(db)
     
     response = service.enroll_user(
         program_id=program_id,
         user_id=request.user_id,
+        form_id=request.form_id,
+        form_data=request.form_data,
         notes=request.notes
     )
     
@@ -241,12 +243,14 @@ async def self_enroll_in_program(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Self-enroll in a program"""
+    """Self-enroll in a program by submitting a form"""
     service = ProgramService(db)
     
     response = service.enroll_user(
         program_id=program_id,
         user_id=current_user.id,
+        form_id=request.form_id,
+        form_data=request.form_data,
         notes=request.notes
     )
     
@@ -294,16 +298,15 @@ async def update_enrollment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update enrollment status (Admin only)"""
+    """Update form response data (Admin only)"""
     if not check_admin_role(current_user):
         raise HTTPException(status_code=403, detail="Only admins can update enrollments")
     
     service = ProgramService(db)
     return service.update_enrollment_status(
-        enrollment_id=enrollment_id,
+        form_response_id=enrollment_id,
         program_id=program_id,
         created_by=current_user.id,
-        status=request.status,
         completion_percentage=request.completion_percentage,
         notes=request.notes
     )

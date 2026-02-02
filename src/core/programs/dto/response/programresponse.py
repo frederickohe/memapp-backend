@@ -102,9 +102,9 @@ class PagedProgramResponse(BaseModel):
 
 
 class ProgramEnrollmentResponse(BaseModel):
-    """Response model for program enrollment"""
+    """Response model for program enrollment (form response)"""
     id: str
-    program_id: str
+    program_id: Optional[str] = None
     user_id: str
     status: str
     completion_percentage: int

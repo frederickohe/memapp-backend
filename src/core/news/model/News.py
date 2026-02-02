@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from core.user.model.User import User
 from utilities.dbconfig import Base
 from datetime import datetime
 from typing import List, Optional, Dict, Any
