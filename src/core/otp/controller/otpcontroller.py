@@ -6,6 +6,7 @@ from core.otp.dto.request.otp_send_request import OTPSendRequest
 from core.otp.dto.request.otp_verify_request import OTPVerifyRequest
 from core.otp.dto.response.otp_send_response import OTPSendResponse
 from core.otp.dto.response.otp_verify_response import OTPVerifyResponse
+from core.otp.dto.request.otp_test import OTPTest
 
 otp_routes = APIRouter()
 
@@ -55,4 +56,19 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     return {
         "success": True,
         "message": "OTP verified successfully"
+    }
+
+# Add to your controller for testing
+
+@otp_routes.post("/test-sms")
+def test_sms(request: OTPTest, db: Session = Depends(get_db)):
+    """Test endpoint to debug SMS sending"""
+    from core.sms.service.sms_factory import get_sms_service
+
+    sms_service = get_sms_service()
+    result = sms_service.send_sms(request.phone, "Test message from debug endpoint")
+    
+    return {
+        "phone": request.phone,
+        "result": result
     }
