@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY . .
 
-# Expose port (if using FastAPI/Uvicorn, default is 8000)
-EXPOSE 8000
+# Expose port (production uses 3090 via startup.sh)
+EXPOSE 3090
 
 # Default command (can be overridden by docker-compose)
 CMD ["python", "src/main.py"]

@@ -1,3 +1,8 @@
+# Ymca Member App backend stack.
+# Requires external Docker network "memapp" — create with:
+#   cd ../memappcaddy && ./setup-networks.sh
+# All services join "memapp" so Caddy can reach API/pgAdmin and they can reach db/redis.
+
 services:
   db:
     image: postgres:15
@@ -6,49 +11,86 @@ services:
       POSTGRES_USER: ymcaadmin
       POSTGRES_PASSWORD: ymca098
       POSTGRES_DB: ymca
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - memapp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ymcaadmin -d ymca"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:latest
-    container_name: ymcaredis
+    container_name: memappredis
     restart: always
-    ports:
-      - "6379:6379"
     command: redis-server --requirepass ymca098
     environment:
       REDIS_PASSWORD: ymca098
     volumes:
       - redis_data:/data
+    networks:
+      - memapp
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: memapp_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@ymemberapp.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-ymca098}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - memapp
 
   backend:
-    build: .
-    command: python src/main.py
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memapp_backend
+    restart: unless-stopped
+    working_dir: /app
+    command: bash startup.sh
     volumes:
       - .:/app
     environment:
-      SQLALCHEMY_DATABASE_URL: postgresql://ymcaadmin:ymca098@db:5432/ymca
-      REDIS_HOST: redis-1
-      REDIS_PORT: 6379
-      JWT_SECRET_KEY: green-secret-keeps-gamma
-      JWT_ALGORITHM: HS256
-      DEBUG: true
-      DB_ECHO: true
-      DB_HOST: ent_core_user_db
-      DB_PORT: 5432
-      DB_USER: user_admin
-      DB_PASSWORD: changeme321
-      DB_DATABASE: ent_core_db
-      MULTI_TENANT: false
-    restart: always
+      PGHOST: ${PGHOST:-db}
+      PGPORT: ${PGPORT:-5432}
+      PGUSER: ${PGUSER:-ymcaadmin}
+      PGPASSWORD: ${PGPASSWORD:-ymca098}
+      PGDATABASE: ${PGDATABASE:-ymca}
+      SQLALCHEMY_DATABASE_URL: "postgresql://ymcaadmin:ymca098@db:5432/ymca"
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-ymca098}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-green-secret-keeps-gamma}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      DEBUG: ${DEBUG:-false}
+      DB_ECHO: ${DB_ECHO:-false}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+      BASE_FRONTEND_URL: ${BASE_FRONTEND_URL:-https://ymemberapp.com}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-https://api.ymemberapp.com}
     depends_on:
       - db
       - redis
-    ports:
-      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - memapp
 
 volumes:
   redis_data:
   postgres_data:
+  pgadmin_data:
+    driver: local
+
+networks:
+  memapp:
+    external: true
+    name: memapp

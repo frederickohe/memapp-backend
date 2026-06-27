@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -9,12 +9,13 @@ class MediaResponse(BaseModel):
     news_id: str
     url: str
     media_type: str
-    metadata: Optional[dict] = None
+    metadata: Optional[dict] = Field(None, alias="media_metadata")
     order: int
     created_at: datetime
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 
 class NewsResponse(BaseModel):
@@ -32,6 +33,7 @@ class NewsResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 
 class PagedNewsResponse(BaseModel):
@@ -43,6 +45,7 @@ class PagedNewsResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
 
 
 class MessageResponse(BaseModel):
@@ -51,3 +54,4 @@ class MessageResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        orm_mode = True
