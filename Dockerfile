@@ -5,7 +5,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy requirements
-COPY src/requirements.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 3090
 
 # Default command (can be overridden by docker-compose)
-CMD ["python", "src/main.py"]
+CMD ["python", "main.py"]

@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import os
 from typing import Dict, Optional
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -18,15 +17,12 @@ class TokenData(BaseModel):
 
 class SessionDriver:
     def __init__(self):
-        # Get Redis host from environment variables (default to 'redis' if not set)
-        redis_host = os.getenv("REDIS_HOST", "redis-1")
-        redis_port = int(os.getenv("REDIS_PORT", 6379))
-        
         self.redis_client = redis.Redis(
-            host='localhost',
-            port=6379,
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            password=settings.REDIS_PASSWORD or None,
             db=0,
-            decode_responses=True
+            decode_responses=True,
         )
         
         # Token configuration (use central settings with sensible fallbacks)

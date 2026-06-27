@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     KID: str = os.environ.get('KID')
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 360
-    REDIS_HOST: str = os.environ.get('REDIS_HOST')
-    REDIS_PORT: str = os.environ.get('REDIS_PORT')
-    REDIS_PASSWORD: str = os.environ.get('REDIS_PASSWORD')
+    REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
+    REDIS_PORT: int = int(os.environ.get('REDIS_PORT', 6379))
+    REDIS_PASSWORD: str = os.environ.get('REDIS_PASSWORD', '')
     RABBIT_MQ_URL: str = os.environ.get('RABBIT_MQ_URL')
     RABBIT_MQ_ROUTING_KEY: str = os.environ.get('RABBIT_MQ_ROUTING_KEY')
     RABBIT_MQ_AUDIT_QUEUE: str = os.environ.get('RABBIT_MQ_AUDIT_QUEUE')
