@@ -92,6 +92,7 @@ async def list_programs(
     status: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     is_published: Optional[bool] = Query(None),
+    branch_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -106,6 +107,7 @@ async def list_programs(
         status=status,
         category=category,
         is_published=is_published,
+        branch_id=branch_id,
         created_by=current_user.id
     )
 

@@ -57,8 +57,42 @@ class PermissionService:
                 ]
 
             self.db.commit()
+        else:
+            self._sync_missing_permissions()
 
         self._migrate_legacy_admins()
+
+    def _sync_missing_permissions(self) -> None:
+        existing_names = {row[0] for row in self.db.query(Permission.name).all()}
+        permission_by_name = {
+            p.name: p for p in self.db.query(Permission).all()
+        }
+        added = False
+        for name, group, description in PERMISSION_CATALOGUE:
+            if name not in existing_names:
+                permission = Permission(
+                    id=generate_id(),
+                    name=name,
+                    group=group,
+                    description=description,
+                )
+                self.db.add(permission)
+                permission_by_name[name] = permission
+                added = True
+
+        if added:
+            self.db.flush()
+
+        for role_name, permission_names in ROLE_PERMISSIONS.items():
+            role = self.db.query(Role).filter(Role.name == role_name).first()
+            if not role:
+                continue
+            current = {p.name for p in role.permissions}
+            for pname in permission_names:
+                if pname not in current and pname in permission_by_name:
+                    role.permissions.append(permission_by_name[pname])
+
+        self.db.commit()
 
     def _migrate_legacy_admins(self) -> None:
         admins = (

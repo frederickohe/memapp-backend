@@ -124,6 +124,7 @@ class ProgramService:
         size: int = 10,
         status: Optional[str] = None,
         category: Optional[str] = None,
+        branch_id: Optional[str] = None,
         is_published: Optional[bool] = None,
         created_by: Optional[str] = None
     ) -> PagedProgramResponse:
@@ -133,6 +134,8 @@ class ProgramService:
         # Apply filters
         if created_by:
             query = query.filter(Program.created_by == created_by)
+        if branch_id:
+            query = query.filter(Program.branch_id == branch_id)
         if category:
             query = query.filter(Program.category == category)
         if is_published is not None:

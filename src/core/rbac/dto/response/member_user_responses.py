@@ -12,6 +12,9 @@ class MemberUserResponse(BaseModel):
     member_id: Optional[str] = None
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
+    branch_id: Optional[str] = None
+    branch_name: Optional[str] = None
+    region_name: Optional[str] = None
     month_dues_paid_status: Optional[str] = None
     year_affiliation_paid_status: Optional[str] = None
     volunteer_points: int = 0

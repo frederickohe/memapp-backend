@@ -7,6 +7,8 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
+from core.branches.model.Branch import Branch
+from core.branches.service.scope_helper import resolve_scope
 from core.user.model.User import User, UserType
 from core.vhs.dto.request.vhs_requests import RejectVhsRequest, SubmitVolunteerHoursRequest
 from core.vhs.dto.response.vhs_responses import VhsSubmissionListResponse, VhsSubmissionResponse
@@ -88,7 +90,14 @@ class VhsService:
         page: int = 1,
         limit: int = 20,
         status: Optional[str] = None,
+        scope: Optional[str] = None,
+        region_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
     ) -> VhsSubmissionListResponse:
+        resolved_scope, resolved_region_id, resolved_branch_id = resolve_scope(
+            scope, region_id, branch_id
+        )
+
         query = (
             self.db.query(VolunteerHoursSubmission)
             .options(joinedload(VolunteerHoursSubmission.member))
@@ -96,6 +105,18 @@ class VhsService:
         )
         if status and status != "all":
             query = query.filter(VolunteerHoursSubmission.status == status)
+
+        if resolved_scope == "branch" and resolved_branch_id:
+            query = query.filter(VolunteerHoursSubmission.branch_id == resolved_branch_id)
+        elif resolved_scope == "region" and resolved_region_id:
+            branch_ids = [
+                row[0]
+                for row in self.db.query(Branch.id).filter(Branch.region_id == resolved_region_id).all()
+            ]
+            if branch_ids:
+                query = query.filter(VolunteerHoursSubmission.branch_id.in_(branch_ids))
+            else:
+                query = query.filter(VolunteerHoursSubmission.id.is_(None))
 
         total = query.count()
         pages = max(1, math.ceil(total / limit)) if total else 1

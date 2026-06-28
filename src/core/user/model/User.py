@@ -64,6 +64,7 @@ class User(Base):
     # Membership Information
     membership_type: Mapped[Optional[str]] = mapped_column(String, default=None)
     current_branch: Mapped[Optional[str]] = mapped_column(String(100))
+    branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
     member_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
     volunteer_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     month_dues_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
@@ -108,6 +109,8 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     assigned_region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     assigned_branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assigned_region_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("regions.id"), nullable=True)
+    assigned_branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
 
     status: Mapped[UserStatus] = mapped_column(String, nullable=False, default=UserStatus.ACTIVE)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -129,6 +132,12 @@ class User(Base):
         "Role",
         back_populates="users",
         foreign_keys=[role_id],
+    )
+
+    branch: Mapped[Optional["Branch"]] = relationship(
+        "Branch",
+        foreign_keys=[branch_id],
+        back_populates="members",
     )
 
     # Removed custom __init__; SQLAlchemy handles defaults and values automatically

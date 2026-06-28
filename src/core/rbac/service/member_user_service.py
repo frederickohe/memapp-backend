@@ -4,8 +4,10 @@ from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from core.branches.model.Branch import Branch
+from core.branches.service.scope_helper import apply_member_scope, resolve_scope
 from core.rbac.dto.request.member_user_requests import UpdateMemberUserRequest
 from core.rbac.dto.response.member_user_responses import (
     MemberUserListResponse,
@@ -24,6 +26,12 @@ class MemberUserService:
         return self.db.query(User).filter(User.user_type == UserType.MEMBER)
 
     def _to_response(self, user: User) -> MemberUserResponse:
+        branch_name = None
+        region_name = None
+        if user.branch:
+            branch_name = user.branch.name
+            if user.branch.region:
+                region_name = user.branch.region.name
         return MemberUserResponse(
             id=user.id,
             full_name=user.fullname,
@@ -31,7 +39,10 @@ class MemberUserService:
             phone=user.phone_number,
             member_id=user.member_id,
             membership_type=user.membership_type,
-            current_branch=user.current_branch,
+            current_branch=user.current_branch or branch_name,
+            branch_id=user.branch_id,
+            branch_name=branch_name,
+            region_name=region_name,
             month_dues_paid_status=user.month_dues_paid_status,
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             volunteer_points=user.volunteer_points or 0,
@@ -44,8 +55,19 @@ class MemberUserService:
             created_at=user.created_at,
         )
 
-    def get_overview(self) -> MemberUserOverviewResponse:
+    def get_overview(
+        self,
+        scope: Optional[str] = None,
+        region_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
+    ) -> MemberUserOverviewResponse:
+        resolved_scope, resolved_region_id, resolved_branch_id = resolve_scope(
+            scope, region_id, branch_id
+        )
         members = self._base_query()
+        members = apply_member_scope(
+            members, self.db, resolved_scope, resolved_region_id, resolved_branch_id
+        )
         total = members.count()
         active = members.filter(
             User.enabled.is_(True),
@@ -80,10 +102,27 @@ class MemberUserService:
         search: Optional[str] = None,
         status: Optional[str] = None,
         branch: Optional[str] = None,
+        branch_id: Optional[str] = None,
+        region_id: Optional[str] = None,
+        scope: Optional[str] = None,
         membership_type: Optional[str] = None,
         prominent_only: Optional[bool] = None,
     ) -> MemberUserListResponse:
-        query = self._base_query().order_by(User.created_at.desc())
+        resolved_scope, resolved_region_id, resolved_branch_id = resolve_scope(
+            scope, region_id, branch_id
+        )
+        if branch_id:
+            resolved_scope = "branch"
+            resolved_branch_id = branch_id
+
+        query = (
+            self._base_query()
+            .options(joinedload(User.branch).joinedload(Branch.region))
+            .order_by(User.created_at.desc())
+        )
+        query = apply_member_scope(
+            query, self.db, resolved_scope, resolved_region_id, resolved_branch_id
+        )
 
         if search:
             term = f"%{search.strip()}%"
@@ -99,7 +138,7 @@ class MemberUserService:
         if status:
             query = query.filter(User.status == status)
 
-        if branch:
+        if branch and not branch_id:
             query = query.filter(User.current_branch.ilike(f"%{branch.strip()}%"))
 
         if membership_type:
@@ -142,6 +181,7 @@ class MemberUserService:
             "member_id": "member_id",
             "membership_type": "membership_type",
             "current_branch": "current_branch",
+            "branch_id": "branch_id",
             "month_dues_paid_status": "month_dues_paid_status",
             "year_affiliation_paid_status": "year_affiliation_paid_status",
             "is_prominent": "is_prominent",
@@ -153,6 +193,11 @@ class MemberUserService:
             attr = field_map.get(key, key)
             if hasattr(user, attr):
                 setattr(user, attr, value)
+
+        if "branch_id" in data and data["branch_id"]:
+            branch = self.db.query(Branch).filter(Branch.id == data["branch_id"]).first()
+            if branch:
+                user.current_branch = branch.name
 
         user.updated_at = datetime.now(timezone.utc)
         self.db.commit()

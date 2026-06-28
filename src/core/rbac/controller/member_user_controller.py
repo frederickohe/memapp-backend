@@ -20,11 +20,14 @@ member_user_routes = APIRouter()
 
 @member_user_routes.get("/members/overview", response_model=ApiEnvelope[MemberUserOverviewResponse])
 def get_members_overview(
+    scope: Optional[str] = Query(None),
+    region_id: Optional[str] = Query(None),
+    branch_id: Optional[str] = Query(None),
     _: User = Depends(require_permission("members.view")),
     db: Session = Depends(get_db),
 ):
     service = MemberUserService(db)
-    return ApiEnvelope(data=service.get_overview())
+    return ApiEnvelope(data=service.get_overview(scope=scope, region_id=region_id, branch_id=branch_id))
 
 
 @member_user_routes.get("/members", response_model=ApiEnvelope[MemberUserListResponse])
@@ -34,6 +37,9 @@ def list_member_users(
     search: Optional[str] = None,
     status: Optional[str] = None,
     branch: Optional[str] = None,
+    branch_id: Optional[str] = None,
+    region_id: Optional[str] = None,
+    scope: Optional[str] = None,
     membership_type: Optional[str] = None,
     prominent_only: Optional[bool] = None,
     _: User = Depends(require_permission("members.view")),
@@ -47,6 +53,9 @@ def list_member_users(
             search=search,
             status=status,
             branch=branch,
+            branch_id=branch_id,
+            region_id=region_id,
+            scope=scope,
             membership_type=membership_type,
             prominent_only=prominent_only,
         )

@@ -30,11 +30,23 @@ def list_vhs_submissions(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     status: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None),
+    region_id: Optional[str] = Query(None),
+    branch_id: Optional[str] = Query(None),
     _: User = Depends(require_permission("vhs.view")),
     db: Session = Depends(get_db),
 ):
     service = VhsService(db)
-    return ApiEnvelope(data=service.list_submissions(page=page, limit=limit, status=status))
+    return ApiEnvelope(
+        data=service.list_submissions(
+            page=page,
+            limit=limit,
+            status=status,
+            scope=scope,
+            region_id=region_id,
+            branch_id=branch_id,
+        )
+    )
 
 
 @vhs_admin_routes.get("/vhs-submissions/{submission_id}", response_model=ApiEnvelope[VhsSubmissionResponse])

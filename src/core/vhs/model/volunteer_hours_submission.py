@@ -24,6 +24,7 @@ class VolunteerHoursSubmission(Base):
     activity_name: Mapped[str] = mapped_column(String(200), nullable=False)
     activity_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
     volunteer_date: Mapped[date] = mapped_column(Date, nullable=False)
     proof_document_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
@@ -44,6 +45,7 @@ class VolunteerHoursSubmission(Base):
         "User",
         foreign_keys=[reviewed_by],
     )
+    branch_ref: Mapped[Optional["Branch"]] = relationship("Branch", foreign_keys=[branch_id])
 
     def __repr__(self) -> str:
         return f"<VolunteerHoursSubmission(id={self.id}, user_id={self.user_id}, status={self.status})>"

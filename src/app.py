@@ -26,6 +26,7 @@ from core.vhs.controller.vhscontroller import vhs_admin_routes, vhs_member_route
 from core.payments.controller.payment_controller import payment_member_routes, payment_admin_routes
 from core.paystack.controller.paystack_controller import paystack_routes
 from core.moolre.controller.moolre_controller import moolre_routes
+from core.branches.controller.branch_controller import branch_routes
 from core.rbac.service.permission_service import PermissionService
 
 from utilities.dbconfig import Base, engine, SessionLocal
@@ -125,6 +126,7 @@ app.include_router(payment_member_routes, prefix="/api/v1/payments", tags=["Memb
 app.include_router(payment_admin_routes, prefix="/api/v1/payments/admin", tags=["Admin Payments"])
 app.include_router(paystack_routes, prefix="/api/v1/paystack", tags=["Paystack"])
 app.include_router(moolre_routes, prefix="/api/v1/moolre", tags=["Moolre"])
+app.include_router(branch_routes, prefix="/api/v1/admin", tags=["Branches & Regions"])
 
 # JWT Authentication Settings
 
