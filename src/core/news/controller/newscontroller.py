@@ -1,22 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
-from fastapi_jwt_auth import AuthJWT
 
-from core.auth.dependencies import get_db, validate_token
+from core.auth.dependencies import get_current_user, get_db, require_admin
 from core.user.model.User import User
 from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
 from core.news.dto.request.newsrequest import NewsCreateRequest, NewsUpdateRequest
 from core.news.service.newsservice import NewsService
 
 news_routes = APIRouter()
-
-
-def _get_user(authjwt: AuthJWT, db) -> User:
-    current_user_email = authjwt.get_jwt_subject()
-    user = db.query(User).filter(User.email == current_user_email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
 
 
 # ============= PUBLIC ROUTES =============
@@ -68,11 +59,10 @@ def get_news_detail(news_id: str, db=Depends(get_db)):
 @news_routes.post("/admin/create", response_model=NewsResponse)
 def create_news(
     news_data: NewsCreateRequest,
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Create a new news segment or event (Admin only)"""
-    user = _get_user(authjwt, db)
     media_list = [media.dict() for media in news_data.media] if news_data.media else []
 
     news_service = NewsService(db)
@@ -97,11 +87,10 @@ def get_all_news(
     content_type: Optional[str] = Query(None, regex="^(NEWS|EVENT)$"),
     published_only: Optional[bool] = None,
     impact_only: Optional[bool] = None,
-    authjwt: AuthJWT = Depends(validate_token),
+    _: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Get all news for admin management"""
-    _get_user(authjwt, db)
     news_service = NewsService(db)
     return news_service.get_all_news(
         page=page,
@@ -117,11 +106,10 @@ def get_my_news(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=50),
     published_only: bool = Query(False),
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Get all news posted by the current admin"""
-    user = _get_user(authjwt, db)
     news_service = NewsService(db)
     return news_service.get_admin_news(
         admin_id=user.id,
@@ -153,11 +141,10 @@ def get_admin_news(
 def update_news(
     news_id: str,
     news_data: NewsUpdateRequest,
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Update a news segment (Admin only)"""
-    user = _get_user(authjwt, db)
     media_list = [media.dict() for media in news_data.media] if news_data.media else None
 
     news_service = NewsService(db)
@@ -179,11 +166,10 @@ def update_news(
 @news_routes.post("/{news_id}/publish", response_model=NewsResponse)
 def publish_news(
     news_id: str,
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Publish a news segment (Admin only)"""
-    user = _get_user(authjwt, db)
     news_service = NewsService(db)
     return news_service.publish_news(news_id=news_id, admin_id=user.id)
 
@@ -191,11 +177,10 @@ def publish_news(
 @news_routes.post("/{news_id}/unpublish", response_model=NewsResponse)
 def unpublish_news(
     news_id: str,
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Unpublish a news segment (Admin only)"""
-    user = _get_user(authjwt, db)
     news_service = NewsService(db)
     return news_service.unpublish_news(news_id=news_id, admin_id=user.id)
 
@@ -203,10 +188,9 @@ def unpublish_news(
 @news_routes.delete("/{news_id}", response_model=MessageResponse)
 def delete_news(
     news_id: str,
-    authjwt: AuthJWT = Depends(validate_token),
+    user: User = Depends(require_admin),
     db=Depends(get_db),
 ):
     """Delete a news segment (Admin only)"""
-    user = _get_user(authjwt, db)
     news_service = NewsService(db)
     return news_service.delete_news(news_id=news_id, admin_id=user.id)
