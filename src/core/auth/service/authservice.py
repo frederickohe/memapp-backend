@@ -12,6 +12,9 @@ from core.auth.service.sessiondriver import SessionDriver
 from core.exceptions.AuthException import InvalidCredentialsError, PermissionDeniedError
 from core.exceptions.UserException import UserAlreadyExistsError
 from core.user.model.User import User, UserType
+from core.rbac.service.rbac_service import RbacService
+from core.rbac.service.role_service import RoleService
+from core.rbac.service.admin_user_service import AdminUserService
 from core.otp.service.otpservice import OTPService
 import secrets
 import string
@@ -43,6 +46,8 @@ class AuthService:
 
     def _build_token_claims(self, user: User) -> dict:
         claims = {"sub": user.email, "user_type": user.user_type}
+        if user.role_id:
+            claims["role_id"] = user.role_id
         if user.role:
             claims["role"] = user.role
         return claims
@@ -66,6 +71,7 @@ class AuthService:
                 "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 "user_type": user.user_type,
                 "role": user.role,
+                "role_id": user.role_id,
             },
         )
 
@@ -196,10 +202,14 @@ class AuthService:
         if not db_user.enabled:
             raise PermissionDeniedError(detail="Admin account is disabled")
 
+        AdminUserService(self.db).record_login(db_user)
         return self._issue_tokens(db_user)
 
     def create_admin(self, request: BaseModel, created_by: Optional[User] = None):
         """Create a new admin user account."""
+        role_service = RoleService(self.db)
+        rbac = RbacService(self.db)
+
         existing_admin_count = (
             self.db.query(User).filter(User.user_type == UserType.ADMIN).count()
         )
@@ -209,6 +219,25 @@ class AuthService:
                 raise PermissionDeniedError(
                     detail="Only an existing admin can create new admin accounts"
                 )
+            if not rbac.can_create_admin(created_by):
+                raise PermissionDeniedError(
+                    detail="You do not have permission to create admin accounts"
+                )
+
+        if request.role_id:
+            target_role = role_service.get_role_entity(request.role_id)
+        else:
+            target_role = role_service.get_role_by_name("super_admin")
+
+        if not target_role or not target_role.is_active:
+            raise HTTPException(status_code=400, detail="Invalid role selected")
+
+        if existing_admin_count > 0 and created_by and not rbac.can_assign_role(
+            created_by, target_role
+        ):
+            raise PermissionDeniedError(
+                detail=f"You cannot assign the {target_role.name} role"
+            )
 
         existing_user = (
             self.db.query(User)
@@ -231,7 +260,10 @@ class AuthService:
             hashed_password=self.hash_password(request.password),
             profile_picture_url=request.profile_picture_url,
             user_type=UserType.ADMIN,
-            role=request.role.value if hasattr(request.role, "value") else request.role,
+            role=target_role.name.upper(),
+            role_id=target_role.id,
+            assigned_region=getattr(request, "assigned_region", None),
+            assigned_branch=getattr(request, "assigned_branch", None),
             enabled=True,
             created_at=datetime.now(timezone.utc),
         )
@@ -246,12 +278,18 @@ class AuthService:
             "email": db_user.email,
             "user_type": db_user.user_type,
             "role": db_user.role,
+            "role_id": db_user.role_id,
         }
 
-    def get_admin_profile(self, user: User):
-        """Return the authenticated admin's profile."""
+    def build_admin_response(self, user: User) -> dict:
+        """Serialize an admin user for profile endpoints."""
         if user.user_type != UserType.ADMIN:
             raise PermissionDeniedError(detail="Admin access required")
+
+        role_summary = None
+        role = user.admin_role or RoleService(self.db).get_role_entity(user.role_id or "")
+        if role:
+            role_summary = {"id": role.id, "name": role.name}
 
         return {
             "id": user.id,
@@ -259,12 +297,19 @@ class AuthService:
             "email": user.email,
             "phone_number": user.phone_number,
             "user_type": user.user_type,
-            "role": user.role,
+            "role": role_summary,
             "profile_picture_url": user.profile_picture_url,
             "enabled": user.enabled,
+            "reset_required": user.reset_required,
             "status": user.status,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "created_at": user.created_at,
+            "assigned_region": user.assigned_region,
+            "assigned_branch": user.assigned_branch,
         }
+
+    def get_admin_profile(self, user: User):
+        """Return the authenticated admin's profile."""
+        return self.build_admin_response(user)
 
     def signout(self, token: str):
         try:

@@ -21,6 +21,8 @@ _model_modules = [
 	"core.news.model.News",
 	"core.forms.model.Form",
 	"core.programs.model.program",
+	"core.rbac.model.Permission",
+	"core.rbac.model.Role",
 ]
 
 

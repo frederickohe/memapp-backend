@@ -2,7 +2,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import MissingTokenError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from core.user.model.User import User, UserType
 from utilities.dbconfig import SessionLocal
@@ -39,7 +39,12 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     email = authjwt.get_jwt_subject()
-    user = db.query(User).filter(User.email == email).first()
+    user = (
+        db.query(User)
+        .options(joinedload(User.admin_role))
+        .filter(User.email == email)
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user

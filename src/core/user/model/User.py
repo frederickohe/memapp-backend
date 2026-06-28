@@ -37,9 +37,9 @@ class UserType(str, PyEnum):
 
 class AdminRole(str, PyEnum):
     SUPER_ADMIN = "SUPER_ADMIN"
-    ADMIN = "ADMIN"
-    EDITOR = "EDITOR"
-    MODERATOR = "MODERATOR"
+    NATIONAL_ADMIN = "NATIONAL_ADMIN"
+    REGIONAL_ADMIN = "REGIONAL_ADMIN"
+    BRANCH_ADMIN = "BRANCH_ADMIN"
 
 class BooleanEnum(str, PyEnum):
     YES = "YES"
@@ -95,6 +95,13 @@ class User(Base):
 
     user_type: Mapped[str] = mapped_column(String, nullable=False, default=UserType.MEMBER)
     role: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    role_id: Mapped[Optional[str]] = mapped_column(
+        String(20), ForeignKey("roles.id"), nullable=True
+    )
+    reset_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    assigned_region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assigned_branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     status: Mapped[UserStatus] = mapped_column(String, nullable=False, default=UserStatus.ACTIVE)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -110,6 +117,12 @@ class User(Base):
         "RefreshToken", 
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+
+    admin_role: Mapped[Optional["Role"]] = relationship(
+        "Role",
+        back_populates="users",
+        foreign_keys=[role_id],
     )
 
     # Removed custom __init__; SQLAlchemy handles defaults and values automatically

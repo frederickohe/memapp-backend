@@ -99,9 +99,10 @@ def admin_signin(user: UserLoginRequest, db: Session = Depends(get_db)):
 
 
 @auth_routes.get("/admin/me", response_model=AdminResponse)
-def admin_me(admin: User = Depends(require_admin)):
+def admin_me(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Get the currently authenticated admin's profile."""
-    return admin
+    auth_service = AuthService(db)
+    return auth_service.build_admin_response(admin)
 
 
 @auth_routes.post("/admin/signout")

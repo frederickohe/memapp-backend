@@ -18,8 +18,11 @@ from core.otp.controller.otpcontroller import otp_routes
 from core.news.controller.newscontroller import news_routes
 from core.forms.controller.formcontroller import form_routes
 from core.programs.controller.programcontroller import program_routes
+from core.rbac.controller.role_controller import role_routes
+from core.rbac.controller.admin_user_controller import admin_user_routes
+from core.rbac.service.permission_service import PermissionService
 
-from utilities.dbconfig import Base, engine
+from utilities.dbconfig import Base, engine, SessionLocal
 from config import settings
 from utilities.exceptions import DatabaseValidationError
 from fastapi.exceptions import RequestValidationError
@@ -36,6 +39,14 @@ async def lifespan(app: FastAPI):
     """Handle application startup and shutdown"""
     # Startup
     logger.info("[APP_STARTUP] Application starting...")
+    db = SessionLocal()
+    try:
+        PermissionService(db).ensure_seed_data()
+        logger.info("[APP_STARTUP] RBAC seed data ensured")
+    except Exception as exc:
+        logger.warning(f"[APP_STARTUP] RBAC seed skipped: {exc}")
+    finally:
+        db.close()
     yield
     # Shutdown
     logger.info("[APP_SHUTDOWN] Application shutting down...")
@@ -98,6 +109,8 @@ app.include_router(otp_routes, prefix="/api/v1/otp", tags=["OTP Routes"])
 app.include_router(news_routes, prefix="/api/v1/news", tags=["News Routes"])
 app.include_router(form_routes, prefix="/api/v1/form", tags=["Forms Routes"])
 app.include_router(program_routes, prefix="/api/v1/program", tags=["Programs Routes"])
+app.include_router(role_routes, prefix="/api/v1/admin", tags=["Admin RBAC"])
+app.include_router(admin_user_routes, prefix="/api/v1/admin", tags=["Admin Users"])
 
 # JWT Authentication Settings
 
