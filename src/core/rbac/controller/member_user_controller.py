@@ -35,6 +35,7 @@ def list_member_users(
     status: Optional[str] = None,
     branch: Optional[str] = None,
     membership_type: Optional[str] = None,
+    prominent_only: Optional[bool] = None,
     _: User = Depends(require_permission("members.view")),
     db: Session = Depends(get_db),
 ):
@@ -47,6 +48,7 @@ def list_member_users(
             status=status,
             branch=branch,
             membership_type=membership_type,
+            prominent_only=prominent_only,
         )
     )
 

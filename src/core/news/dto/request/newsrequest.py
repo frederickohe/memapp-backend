@@ -19,6 +19,10 @@ class NewsCreateRequest(BaseModel):
     title: str
     content: str
     summary: Optional[str] = None
+    content_type: str = "NEWS"  # NEWS or EVENT
+    is_impact_story: bool = False
+    event_date: Optional[datetime] = None
+    event_location: Optional[str] = None
     is_published: bool = False
     media: List[MediaCreateRequest] = []
     
@@ -31,6 +35,10 @@ class NewsUpdateRequest(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     summary: Optional[str] = None
+    content_type: Optional[str] = None
+    is_impact_story: Optional[bool] = None
+    event_date: Optional[datetime] = None
+    event_location: Optional[str] = None
     is_published: Optional[bool] = None
     media: Optional[List[MediaCreateRequest]] = None
     

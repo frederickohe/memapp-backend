@@ -16,6 +16,9 @@ class MemberUserResponse(BaseModel):
     year_affiliation_paid_status: Optional[str] = None
     volunteer_points: int = 0
     profile_picture_url: Optional[str] = None
+    is_prominent: bool = False
+    prominent_order: int = 0
+    prominent_headline: Optional[str] = None
     is_active: bool
     status: str
     created_at: datetime

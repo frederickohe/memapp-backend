@@ -12,3 +12,6 @@ class UpdateMemberUserRequest(BaseModel):
     current_branch: Optional[str] = None
     month_dues_paid_status: Optional[str] = None
     year_affiliation_paid_status: Optional[str] = None
+    is_prominent: Optional[bool] = None
+    prominent_order: Optional[int] = None
+    prominent_headline: Optional[str] = None

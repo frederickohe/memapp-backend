@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import csv
+import io
 import secrets
 import string
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 from fastapi import HTTPException, status
@@ -12,6 +14,10 @@ from core.forms.dto.response.formresponse import (
     FormDetailResponse,
     FormResponseDataResponse,
     FormResponsesListResponse,
+    FormAnalyticsResponse,
+    FieldAnalytics,
+    FieldOptionCount,
+    DailyResponseCount,
     PagedFormResponse,
     FormFieldResponse
 )
@@ -275,7 +281,23 @@ class FormService:
         self.db.commit()
         self.db.refresh(response)
         
-        return FormResponseDataResponse.from_orm(response)
+        return self._convert_response_to_dto(response)
+    
+    def _convert_response_to_dto(self, response: FormResponse) -> FormResponseDataResponse:
+        """Convert form response model to DTO with user info"""
+        user = self.db.query(User).filter(User.id == response.user_id).first()
+        return FormResponseDataResponse(
+            id=response.id,
+            form_id=response.form_id,
+            user_id=response.user_id,
+            user_name=user.fullname if user else None,
+            user_email=user.email if user else None,
+            data=response.data,
+            notes=response.notes,
+            is_submitted=response.is_submitted,
+            created_at=response.created_at,
+            updated_at=response.updated_at,
+        )
     
     def get_form_responses(
         self,
@@ -306,7 +328,7 @@ class FormService:
         skip = (page - 1) * size
         responses = query.offset(skip).limit(size).all()
         
-        response_dtos = [FormResponseDataResponse.from_orm(r) for r in responses]
+        response_dtos = [self._convert_response_to_dto(r) for r in responses]
         
         return FormResponsesListResponse(
             form_id=form_id,
@@ -403,6 +425,135 @@ class FormService:
             ))
         
         return PagedFormResponse(total=total, page=page, size=size, items=items)
+    
+    def get_form_analytics(self, form_id: str, admin_id: str) -> FormAnalyticsResponse:
+        """Compute analytics for a form (admin only)"""
+        form = self.db.query(Form).filter(Form.id == form_id).first()
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        if form.admin_id != admin_id:
+            raise HTTPException(status_code=403, detail="Not authorized to view analytics for this form")
+        
+        responses = (
+            self.db.query(FormResponse)
+            .filter(FormResponse.form_id == form_id)
+            .order_by(FormResponse.created_at)
+            .all()
+        )
+        
+        now = datetime.now(timezone.utc)
+        seven_days_ago = now - timedelta(days=7)
+        thirty_days_ago = now - timedelta(days=30)
+        
+        total = len(responses)
+        last_7 = sum(1 for r in responses if r.created_at and r.created_at >= seven_days_ago)
+        last_30 = sum(1 for r in responses if r.created_at and r.created_at >= thirty_days_ago)
+        
+        # Daily counts for last 30 days
+        daily_map: Dict[str, int] = {}
+        for i in range(30):
+            day = (now - timedelta(days=29 - i)).strftime("%Y-%m-%d")
+            daily_map[day] = 0
+        for r in responses:
+            if r.created_at and r.created_at >= thirty_days_ago:
+                day_key = r.created_at.strftime("%Y-%m-%d")
+                if day_key in daily_map:
+                    daily_map[day_key] += 1
+        daily_counts = [DailyResponseCount(date=d, count=c) for d, c in sorted(daily_map.items())]
+        
+        # Per-field analytics
+        fields_list = self._convert_fields_to_response_list(form.fields)
+        choice_types = {"select", "radio", "checkbox"}
+        field_analytics: List[FieldAnalytics] = []
+        
+        for field in fields_list:
+            answered = 0
+            option_counts: Optional[List[FieldOptionCount]] = None
+            
+            if field.field_type in choice_types and field.options:
+                counts: Dict[str, int] = {opt: 0 for opt in field.options}
+                for r in responses:
+                    val = r.data.get(field.name)
+                    if val is None or val == "" or val == []:
+                        continue
+                    answered += 1
+                    if field.field_type == "checkbox" and isinstance(val, list):
+                        for v in val:
+                            if v in counts:
+                                counts[v] += 1
+                    elif isinstance(val, str) and val in counts:
+                        counts[val] += 1
+                option_counts = [FieldOptionCount(option=k, count=v) for k, v in counts.items()]
+            else:
+                for r in responses:
+                    val = r.data.get(field.name)
+                    if val is not None and val != "" and val != []:
+                        answered += 1
+            
+            field_analytics.append(FieldAnalytics(
+                name=field.name,
+                label=field.label,
+                field_type=field.field_type,
+                total_answered=answered,
+                option_counts=option_counts,
+            ))
+        
+        return FormAnalyticsResponse(
+            form_id=form_id,
+            form_title=form.title,
+            total_responses=total,
+            responses_last_7_days=last_7,
+            responses_last_30_days=last_30,
+            daily_counts=daily_counts,
+            field_analytics=field_analytics,
+        )
+    
+    def export_form_responses_csv(self, form_id: str, admin_id: str) -> Tuple[str, str]:
+        """Export all form responses as CSV (admin only)"""
+        form = self.db.query(Form).filter(Form.id == form_id).first()
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        if form.admin_id != admin_id:
+            raise HTTPException(status_code=403, detail="Not authorized to export responses for this form")
+        
+        responses = (
+            self.db.query(FormResponse)
+            .filter(FormResponse.form_id == form_id)
+            .order_by(desc(FormResponse.created_at))
+            .all()
+        )
+        
+        fields_list = self._convert_fields_to_response_list(form.fields)
+        field_names = [f.name for f in fields_list]
+        field_labels = {f.name: f.label for f in fields_list}
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        header = ["Response ID", "User ID", "User Name", "User Email", "Submitted At", "Notes"]
+        header.extend(field_labels.get(fn, fn) for fn in field_names)
+        writer.writerow(header)
+        
+        for r in responses:
+            user = self.db.query(User).filter(User.id == r.user_id).first()
+            row = [
+                r.id,
+                r.user_id,
+                user.fullname if user else "",
+                user.email if user else "",
+                r.created_at.isoformat() if r.created_at else "",
+                r.notes or "",
+            ]
+            for fn in field_names:
+                val = r.data.get(fn, "")
+                if isinstance(val, list):
+                    val = "; ".join(str(v) for v in val)
+                row.append(val)
+            writer.writerow(row)
+        
+        safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in form.title)[:50]
+        filename = f"{safe_title}_responses.csv"
+        return output.getvalue(), filename
     
     def _validate_form_response(self, form: Form, data: Dict[str, Any]) -> None:
         """Validate form response against form fields"""

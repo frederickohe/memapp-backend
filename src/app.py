@@ -16,6 +16,7 @@ from core.cloudstorage.controller.storagecontoller import storage_routes
 from core.notification.controller.notificationcontroller import notification_routes
 from core.otp.controller.otpcontroller import otp_routes
 from core.news.controller.newscontroller import news_routes
+from core.dashboard.controller.dashboardcontroller import dashboard_routes
 from core.forms.controller.formcontroller import form_routes
 from core.programs.controller.programcontroller import program_routes
 from core.rbac.controller.role_controller import role_routes
@@ -112,6 +113,7 @@ app.include_router(user_routes, prefix="/api/v1/user", tags=["User Routes"])
 app.include_router(notification_routes, prefix="/api/v1/notification", tags=["Notification Routes"])
 app.include_router(otp_routes, prefix="/api/v1/otp", tags=["OTP Routes"])
 app.include_router(news_routes, prefix="/api/v1/news", tags=["News Routes"])
+app.include_router(dashboard_routes, prefix="/api/v1/dashboard", tags=["Dashboard Routes"])
 app.include_router(form_routes, prefix="/api/v1/form", tags=["Forms Routes"])
 app.include_router(program_routes, prefix="/api/v1/program", tags=["Programs Routes"])
 app.include_router(role_routes, prefix="/api/v1/admin", tags=["Admin RBAC"])

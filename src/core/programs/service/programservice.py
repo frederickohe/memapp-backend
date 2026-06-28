@@ -87,7 +87,7 @@ class ProgramService:
             created_by=created_by,
             is_published=is_published,
             allow_registration=allow_registration,
-            metadata=metadata,
+            program_metadata=metadata,
             status=self._get_program_status(Program(
                 starting_date=starting_date,
                 end_date=end_date,
@@ -198,7 +198,7 @@ class ProgramService:
         if "allow_registration" in kwargs and kwargs["allow_registration"] is not None:
             program.allow_registration = kwargs["allow_registration"]
         if "metadata" in kwargs and kwargs["metadata"] is not None:
-            program.metadata = kwargs["metadata"]
+            program.program_metadata = kwargs["metadata"]
         if "form_ids" in kwargs and kwargs["form_ids"] is not None:
             forms = self.db.query(Form).filter(Form.id.in_(kwargs["form_ids"])).all()
             if len(forms) != len(kwargs["form_ids"]):
@@ -518,6 +518,7 @@ class ProgramService:
             forms=forms_data,
             participant_count=len(program.participants),
             participants=participants_data,
+            metadata=program.program_metadata,
             created_at=program.created_at,
             updated_at=program.updated_at
         )

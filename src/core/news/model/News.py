@@ -14,6 +14,11 @@ class MediaType(str, PythonEnum):
     VIDEO = "VIDEO"
 
 
+class ContentType(str, PythonEnum):
+    NEWS = "NEWS"
+    EVENT = "EVENT"
+
+
 class NewsMedia(Base):
     """Model for storing media files (images/videos) associated with news"""
     __tablename__ = "news_media"
@@ -57,6 +62,16 @@ class News(Base):
     
     # Optional: Summary/excerpt
     summary: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # NEWS for announcements, EVENT for upcoming events
+    content_type: Mapped[str] = mapped_column(String, nullable=False, default=ContentType.NEWS)
+
+    # Impact stories are highlighted on member dashboards
+    is_impact_story: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Event-specific fields
+    event_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    event_location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Status: published or draft
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

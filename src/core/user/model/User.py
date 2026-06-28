@@ -86,6 +86,11 @@ class User(Base):
     twitter_url: Mapped[Optional[str]] = mapped_column(String(200))
     instagram_url: Mapped[Optional[str]] = mapped_column(String(200))
     
+    # Prominent profile (featured on member dashboard)
+    is_prominent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    prominent_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prominent_headline: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
     # Notification Preferences
     profile_sharing: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     in_app_notification: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
