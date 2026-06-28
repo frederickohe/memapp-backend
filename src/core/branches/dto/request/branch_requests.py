@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 
 class CreateRegionRequest(BaseModel):
@@ -37,8 +37,18 @@ class AssignPresidentRequest(BaseModel):
 
 class BroadcastMessageRequest(BaseModel):
     channel: str = Field(..., regex="^(sms|email)$")
-    scope: str = Field(..., regex="^(national|region|branch)$")
+    scope: str = Field(..., regex="^(national|region|branch|users)$")
     region_id: Optional[str] = None
     branch_id: Optional[str] = None
+    user_ids: Optional[List[str]] = None
     subject: Optional[str] = Field(None, max_length=200)
     message: str = Field(..., min_length=1, max_length=5000)
+
+    @root_validator
+    def validate_scope_requirements(cls, values):
+        scope = values.get("scope")
+        if scope == "users":
+            user_ids = values.get("user_ids") or []
+            if not user_ids:
+                raise ValueError("user_ids is required when scope is users")
+        return values

@@ -51,6 +51,8 @@ class TopBranchStat(BaseModel):
     branch_name: str
     region_name: str
     member_count: int
+    member_target: int
+    member_progress_pct: int
 
 
 class RecentRegistration(BaseModel):
@@ -71,6 +73,9 @@ class ProgressOverviewResponse(BaseModel):
     total_members: int
     active_members: int
     inactive_members: int
+    member_target: int
+    members_remaining: int
+    member_progress_pct: int
     pending_vhs: int
     approved_vhs: int
     branch_count: int

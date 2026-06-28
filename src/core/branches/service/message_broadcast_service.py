@@ -27,20 +27,33 @@ class MessageBroadcastService:
         self.notification_service = NotificationService(db)
 
     def broadcast(self, request: BroadcastMessageRequest) -> BroadcastMessageResponse:
-        scope, region_id, branch_id = resolve_scope(request.scope, request.region_id, request.branch_id)
-
-        if scope == "region" and not region_id:
-            raise HTTPException(status_code=400, detail="region_id is required for regional broadcasts")
-        if scope == "branch" and not branch_id:
-            raise HTTPException(status_code=400, detail="branch_id is required for branch broadcasts")
         if request.channel == "email" and not request.subject:
             raise HTTPException(status_code=400, detail="subject is required for email broadcasts")
 
-        query = self.db.query(User).filter(
-            User.user_type == UserType.MEMBER,
-            User.enabled.is_(True),
-        )
-        query = apply_member_scope(query, self.db, scope, region_id, branch_id)
+        if request.scope == "users":
+            user_ids = list(dict.fromkeys(request.user_ids or []))
+            if not user_ids:
+                raise HTTPException(status_code=400, detail="user_ids is required for user-targeted messages")
+
+            query = self.db.query(User).filter(
+                User.user_type == UserType.MEMBER,
+                User.enabled.is_(True),
+                User.id.in_(user_ids),
+            )
+            scope = "users"
+        else:
+            scope, region_id, branch_id = resolve_scope(request.scope, request.region_id, request.branch_id)
+
+            if scope == "region" and not region_id:
+                raise HTTPException(status_code=400, detail="region_id is required for regional broadcasts")
+            if scope == "branch" and not branch_id:
+                raise HTTPException(status_code=400, detail="branch_id is required for branch broadcasts")
+
+            query = self.db.query(User).filter(
+                User.user_type == UserType.MEMBER,
+                User.enabled.is_(True),
+            )
+            query = apply_member_scope(query, self.db, scope, region_id, branch_id)
 
         if request.channel == "sms":
             query = query.filter(User.phone_number.isnot(None), User.phone_number != "")

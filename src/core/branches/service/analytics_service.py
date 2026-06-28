@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session, joinedload
 
+from config import settings
 from core.branches.dto.response.branch_responses import (
     ProgressOverviewResponse,
     RecentRegistration,
@@ -81,6 +82,10 @@ class AnalyticsService:
         else:
             branch_count = self.db.query(Branch).filter(Branch.is_active.is_(True)).count()
 
+        member_target = self._member_target(resolved_scope, branch_count)
+        members_remaining = max(0, member_target - total_members)
+        member_progress_pct = self._member_progress_pct(total_members, member_target)
+
         top_branches = self._top_branches(resolved_scope, resolved_region_id, resolved_branch_id)
         recent_registrations = self._recent_registrations(
             resolved_scope, resolved_region_id, resolved_branch_id
@@ -95,12 +100,29 @@ class AnalyticsService:
             total_members=total_members,
             active_members=active_members,
             inactive_members=inactive_members,
+            member_target=member_target,
+            members_remaining=members_remaining,
+            member_progress_pct=member_progress_pct,
             pending_vhs=pending_vhs,
             approved_vhs=approved_vhs,
             branch_count=branch_count,
             top_branches=top_branches,
             recent_registrations=recent_registrations,
         )
+
+    @staticmethod
+    def _member_target(scope: str, branch_count: int) -> int:
+        if scope == "branch":
+            return settings.YMCA_BRANCH_MEMBER_TARGET
+        if scope == "region":
+            return branch_count * settings.YMCA_BRANCH_MEMBER_TARGET
+        return settings.YMCA_ORGANIZATION_MEMBER_TARGET
+
+    @staticmethod
+    def _member_progress_pct(total_members: int, member_target: int) -> int:
+        if member_target <= 0:
+            return 0
+        return min(100, round((total_members / member_target) * 100))
 
     def _top_branches(
         self,
@@ -129,12 +151,15 @@ class AnalyticsService:
             query = query.filter(Branch.region_id == region_id)
 
         rows = query.limit(limit).all()
+        branch_target = settings.YMCA_BRANCH_MEMBER_TARGET
         return [
             TopBranchStat(
                 branch_id=row[0],
                 branch_name=row[1],
                 region_name=row[2],
                 member_count=row[3] or 0,
+                member_target=branch_target,
+                member_progress_pct=AnalyticsService._member_progress_pct(row[3] or 0, branch_target),
             )
             for row in rows
         ]
