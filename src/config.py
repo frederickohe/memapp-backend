@@ -140,6 +140,10 @@ class Settings(BaseSettings):
     SWAP_REQUEST_EXPIRY_HOURS: int = int(os.environ.get("SWAP_REQUEST_EXPIRY_HOURS", "72"))
     LISTING_EXPIRY_DAYS: int = int(os.environ.get("LISTING_EXPIRY_DAYS", "30"))
     DEFAULT_CURRENCY: str = os.environ.get("DEFAULT_CURRENCY", "GHS")
+
+    # YMCA membership payment amounts (GHS)
+    MONTHLY_DUES_AMOUNT_GHS: float = float(os.environ.get("MONTHLY_DUES_AMOUNT_GHS", "50"))
+    ANNUAL_AFFILIATION_AMOUNT_GHS: float = float(os.environ.get("ANNUAL_AFFILIATION_AMOUNT_GHS", "200"))
     GOOGLE_MAPS_API_KEY: str = os.environ.get("GOOGLE_MAPS_API_KEY", "")
     GEOAPIFY_API_KEY: str = os.environ.get("GEOAPIFY_API_KEY", "")
 

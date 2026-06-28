@@ -24,6 +24,8 @@ _model_modules = [
 	"core.vhs.model.volunteer_hours_submission",
 	"core.rbac.model.Permission",
 	"core.rbac.model.Role",
+	"core.payments.model.Payment",
+	"core.paystack.model.paystack_session",
 ]
 
 

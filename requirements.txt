@@ -71,3 +71,4 @@ gunicorn==23.0.0
 APScheduler==3.10.4
 alembic==1.11.1
 boto3==1.43.14
+xhtml2pdf==0.2.16

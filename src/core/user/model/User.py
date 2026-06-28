@@ -207,6 +207,13 @@ class User(Base):
         lazy="dynamic",
     )
 
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
     # For security/authentication purposes
     @property
     def password(self):

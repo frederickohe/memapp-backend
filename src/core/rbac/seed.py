@@ -35,7 +35,7 @@ PERMISSION_CATALOGUE: List[Tuple[str, str, str]] = [
     ("finance.manage", "Finance", "Manage payments and payouts"),
     ("settings.view", "Settings", "View system settings"),
     ("settings.update", "Settings", "Update system settings"),
-    ("analytics.view", "Analytics", "View analytics dashboards"),
+    ("analytics.view", "Progress", "View progress dashboards"),
     ("messages.view", "Messages", "View messages"),
     ("messages.send", "Messages", "Send messages"),
     ("vhs.view", "Volunteer Hours", "View volunteer hours submissions"),
