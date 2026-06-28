@@ -76,6 +76,9 @@ class ProgressOverviewResponse(BaseModel):
     member_target: int
     members_remaining: int
     member_progress_pct: int
+    active_member_pct: int
+    avg_members_per_branch: int
+    branches_at_goal: int
     pending_vhs: int
     approved_vhs: int
     branch_count: int

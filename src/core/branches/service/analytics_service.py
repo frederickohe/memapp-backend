@@ -85,6 +85,11 @@ class AnalyticsService:
         member_target = self._member_target(resolved_scope, branch_count)
         members_remaining = max(0, member_target - total_members)
         member_progress_pct = self._member_progress_pct(total_members, member_target)
+        active_member_pct = self._member_progress_pct(active_members, total_members)
+        avg_members_per_branch = round(total_members / branch_count) if branch_count > 0 else 0
+        branches_at_goal = self._branches_at_goal(
+            resolved_scope, resolved_region_id, resolved_branch_id
+        )
 
         top_branches = self._top_branches(resolved_scope, resolved_region_id, resolved_branch_id)
         recent_registrations = self._recent_registrations(
@@ -103,6 +108,9 @@ class AnalyticsService:
             member_target=member_target,
             members_remaining=members_remaining,
             member_progress_pct=member_progress_pct,
+            active_member_pct=active_member_pct,
+            avg_members_per_branch=avg_members_per_branch,
+            branches_at_goal=branches_at_goal,
             pending_vhs=pending_vhs,
             approved_vhs=approved_vhs,
             branch_count=branch_count,
@@ -123,6 +131,28 @@ class AnalyticsService:
         if member_target <= 0:
             return 0
         return min(100, round((total_members / member_target) * 100))
+
+    def _branches_at_goal(
+        self,
+        scope: str,
+        region_id: Optional[str],
+        branch_id: Optional[str],
+    ) -> int:
+        branch_target = settings.YMCA_BRANCH_MEMBER_TARGET
+        query = (
+            self.db.query(Branch.id)
+            .outerjoin(User, (User.branch_id == Branch.id) & (User.user_type == UserType.MEMBER))
+            .filter(Branch.is_active.is_(True))
+            .group_by(Branch.id)
+            .having(func.count(User.id) >= branch_target)
+        )
+
+        if scope == "branch" and branch_id:
+            query = query.filter(Branch.id == branch_id)
+        elif scope == "region" and region_id:
+            query = query.filter(Branch.region_id == region_id)
+
+        return len(query.all())
 
     def _top_branches(
         self,
