@@ -73,7 +73,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # JWT auth uses Authorization headers, not cookies. Credentials mode must stay
+    # off when allow_origins is "*" — otherwise browsers reject responses that
+    # combine Allow-Origin: * with Allow-Credentials: true (Failed to fetch).
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
