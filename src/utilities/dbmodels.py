@@ -21,6 +21,7 @@ _model_modules = [
 	"core.news.model.News",
 	"core.forms.model.Form",
 	"core.programs.model.program",
+	"core.vhs.model.volunteer_hours_submission",
 	"core.rbac.model.Permission",
 	"core.rbac.model.Role",
 ]

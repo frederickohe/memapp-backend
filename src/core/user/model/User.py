@@ -65,6 +65,7 @@ class User(Base):
     membership_type: Mapped[Optional[str]] = mapped_column(String, default=None)
     current_branch: Mapped[Optional[str]] = mapped_column(String(100))
     member_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
+    volunteer_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     month_dues_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
     year_affiliation_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
     
@@ -196,6 +197,14 @@ class User(Base):
         secondary="program_participants",
         back_populates="participants",
         lazy="dynamic"
+    )
+
+    volunteer_hours_submissions: Mapped[List["VolunteerHoursSubmission"]] = relationship(
+        "VolunteerHoursSubmission",
+        foreign_keys="VolunteerHoursSubmission.user_id",
+        back_populates="member",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
     )
 
     # For security/authentication purposes
