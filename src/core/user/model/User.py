@@ -31,6 +31,16 @@ class MembershipType(str, PyEnum):
     VIP = "VIP"
     STANDARD = "STANDARD"
 
+class UserType(str, PyEnum):
+    MEMBER = "MEMBER"
+    ADMIN = "ADMIN"
+
+class AdminRole(str, PyEnum):
+    SUPER_ADMIN = "SUPER_ADMIN"
+    ADMIN = "ADMIN"
+    EDITOR = "EDITOR"
+    MODERATOR = "MODERATOR"
+
 class BooleanEnum(str, PyEnum):
     YES = "YES"
     NO = "NO"
@@ -82,7 +92,10 @@ class User(Base):
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    
+
+    user_type: Mapped[str] = mapped_column(String, nullable=False, default=UserType.MEMBER)
+    role: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+
     status: Mapped[UserStatus] = mapped_column(String, nullable=False, default=UserStatus.ACTIVE)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
@@ -180,6 +193,10 @@ class User(Base):
     @property
     def is_active(self):
         return self.enabled
+
+    @property
+    def is_admin(self) -> bool:
+        return self.user_type == UserType.ADMIN
 
     @property
     def is_authenticated(self):

@@ -9,9 +9,9 @@ from fastapi import HTTPException
 from fastapi import status
 from datetime import datetime, timedelta, timezone
 from core.auth.service.sessiondriver import SessionDriver
-from core.exceptions.AuthException import InvalidCredentialsError
+from core.exceptions.AuthException import InvalidCredentialsError, PermissionDeniedError
 from core.exceptions.UserException import UserAlreadyExistsError
-from core.user.model.User import User
+from core.user.model.User import User, UserType
 from core.otp.service.otpservice import OTPService
 import secrets
 import string
@@ -40,6 +40,34 @@ class AuthService:
         """Generate a random user ID with alphanumeric characters."""
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for i in range(20))
+
+    def _build_token_claims(self, user: User) -> dict:
+        claims = {"sub": user.email, "user_type": user.user_type}
+        if user.role:
+            claims["role"] = user.role
+        return claims
+
+    def _issue_tokens(self, user: User) -> JSONResponse:
+        claims = self._build_token_claims(user)
+        access_token = self.session_driver.create_access_token(
+            data=claims,
+            expires_delta=timedelta(minutes=self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES),
+        )
+        refresh_token = self.session_driver.create_refresh_token(data=claims)
+        self.session_driver.store_tokens(access_token, refresh_token)
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "Login successful",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "user_type": user.user_type,
+                "role": user.role,
+            },
+        )
 
     def create_user(self, request: BaseModel):
         """Create a new user in the database."""
@@ -91,7 +119,8 @@ class AuthService:
             profile_sharing=request.profile_sharing,
             in_app_notification=request.in_app_notification,
             sms_notification=request.sms_notification,
-            
+
+            user_type=UserType.MEMBER,
             created_at=datetime.now(timezone.utc),
         )
 
@@ -155,28 +184,87 @@ class AuthService:
     def signin(self, user: BaseModel):
         """Login the user by generating a JWT token and returning tokens."""
         db_user = self.authenticate_user(user.email, user.password)
+        return self._issue_tokens(db_user)
 
-        access_token = self.session_driver.create_access_token(
-            data={"sub": db_user.email},
-            expires_delta=timedelta(minutes=self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
-        
-        refresh_token = self.session_driver.create_refresh_token(
-            data={"sub": db_user.email}
+    def admin_signin(self, user: BaseModel):
+        """Login an admin user; rejects accounts that are not admins."""
+        db_user = self.authenticate_user(user.email, user.password)
+
+        if db_user.user_type != UserType.ADMIN:
+            raise PermissionDeniedError(detail="Admin credentials required")
+
+        if not db_user.enabled:
+            raise PermissionDeniedError(detail="Admin account is disabled")
+
+        return self._issue_tokens(db_user)
+
+    def create_admin(self, request: BaseModel, created_by: Optional[User] = None):
+        """Create a new admin user account."""
+        existing_admin_count = (
+            self.db.query(User).filter(User.user_type == UserType.ADMIN).count()
         )
 
-        self.session_driver.store_tokens(access_token, refresh_token)
+        if existing_admin_count > 0:
+            if not created_by or created_by.user_type != UserType.ADMIN:
+                raise PermissionDeniedError(
+                    detail="Only an existing admin can create new admin accounts"
+                )
 
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "Login successful",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-            },
+        existing_user = (
+            self.db.query(User)
+            .filter(
+                (User.email == request.email) | (User.fullname == request.fullname)
+            )
+            .first()
         )
+
+        if existing_user:
+            if existing_user.email == request.email:
+                raise UserAlreadyExistsError(field="email")
+            raise UserAlreadyExistsError(field="fullname")
+
+        db_user = User(
+            id=self.generate_user_id(),
+            fullname=request.fullname,
+            phone_number=request.phone_number,
+            email=request.email,
+            hashed_password=self.hash_password(request.password),
+            profile_picture_url=request.profile_picture_url,
+            user_type=UserType.ADMIN,
+            role=request.role.value if hasattr(request.role, "value") else request.role,
+            enabled=True,
+            created_at=datetime.now(timezone.utc),
+        )
+
+        self.db.add(db_user)
+        self.db.commit()
+        self.db.refresh(db_user)
+
+        return {
+            "message": "Admin account created successfully",
+            "user_id": db_user.id,
+            "email": db_user.email,
+            "user_type": db_user.user_type,
+            "role": db_user.role,
+        }
+
+    def get_admin_profile(self, user: User):
+        """Return the authenticated admin's profile."""
+        if user.user_type != UserType.ADMIN:
+            raise PermissionDeniedError(detail="Admin access required")
+
+        return {
+            "id": user.id,
+            "fullname": user.fullname,
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "user_type": user.user_type,
+            "role": user.role,
+            "profile_picture_url": user.profile_picture_url,
+            "enabled": user.enabled,
+            "status": user.status,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+        }
 
     def signout(self, token: str):
         try:

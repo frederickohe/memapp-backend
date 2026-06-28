@@ -11,7 +11,7 @@ from utilities.dbconfig import SessionLocal
 from sqlalchemy.orm import Session
 import logging
 from core.news.model.News import News
-from core.user.model.User import User
+from core.user.model.User import User, UserType
 
 # DTO Models
 from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
@@ -57,9 +57,8 @@ def get_db():
 
 def check_admin_role(user: User) -> User:
     """Check if user has admin role"""
-    # You may want to add a role field to User model for this
-    # For now, we'll assume admins are determined by your business logic
-    # You can modify this based on your actual admin determination
+    if user.user_type != UserType.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 

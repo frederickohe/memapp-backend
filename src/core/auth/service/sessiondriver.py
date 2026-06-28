@@ -154,9 +154,15 @@ class SessionDriver:
                     detail="Refresh token mismatch"
                 )
             
-            # Create new access token
+            # Create new access token (preserve user_type and role from refresh token)
+            token_claims = {"sub": email}
+            if payload.get("user_type"):
+                token_claims["user_type"] = payload["user_type"]
+            if payload.get("role"):
+                token_claims["role"] = payload["role"]
+
             new_access_token = self.create_access_token(
-                data={"sub": email},
+                data=token_claims,
                 expires_delta=timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
             )
             

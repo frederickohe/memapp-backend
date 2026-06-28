@@ -70,7 +70,7 @@ def get_db():
 
 def check_admin_role(user: User) -> bool:
     """Check if user has admin role"""
-    return getattr(user, 'is_admin', False) or getattr(user, 'role', None) == 'admin'
+    return user.is_admin
 
 
 def get_current_user(authjwt: AuthJWT = Depends(validate_token), db: Session = Depends(get_db)) -> User:
