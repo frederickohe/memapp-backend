@@ -20,6 +20,7 @@ from core.forms.controller.formcontroller import form_routes
 from core.programs.controller.programcontroller import program_routes
 from core.rbac.controller.role_controller import role_routes
 from core.rbac.controller.admin_user_controller import admin_user_routes
+from core.rbac.controller.member_user_controller import member_user_routes
 from core.vhs.controller.vhscontroller import vhs_admin_routes, vhs_member_routes
 from core.payments.controller.payment_controller import payment_member_routes, payment_admin_routes
 from core.paystack.controller.paystack_controller import paystack_routes
@@ -115,6 +116,7 @@ app.include_router(form_routes, prefix="/api/v1/form", tags=["Forms Routes"])
 app.include_router(program_routes, prefix="/api/v1/program", tags=["Programs Routes"])
 app.include_router(role_routes, prefix="/api/v1/admin", tags=["Admin RBAC"])
 app.include_router(admin_user_routes, prefix="/api/v1/admin", tags=["Admin Users"])
+app.include_router(member_user_routes, prefix="/api/v1/admin", tags=["Admin Members"])
 app.include_router(vhs_admin_routes, prefix="/api/v1/admin", tags=["Admin VHS"])
 app.include_router(vhs_member_routes, prefix="/api/v1/vhs", tags=["Volunteer Hours"])
 app.include_router(payment_member_routes, prefix="/api/v1/payments", tags=["Member Payments"])
