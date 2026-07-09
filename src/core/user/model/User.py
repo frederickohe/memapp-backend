@@ -64,6 +64,7 @@ class User(Base):
     # Membership Information
     membership_type: Mapped[Optional[str]] = mapped_column(String, default=None)
     current_branch: Mapped[Optional[str]] = mapped_column(String(100))
+    branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
     member_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
     volunteer_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     month_dues_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
@@ -86,6 +87,11 @@ class User(Base):
     twitter_url: Mapped[Optional[str]] = mapped_column(String(200))
     instagram_url: Mapped[Optional[str]] = mapped_column(String(200))
     
+    # Prominent profile (featured on member dashboard)
+    is_prominent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    prominent_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prominent_headline: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
     # Notification Preferences
     profile_sharing: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     in_app_notification: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
@@ -103,6 +109,8 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     assigned_region: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     assigned_branch: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assigned_region_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("regions.id"), nullable=True)
+    assigned_branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
 
     status: Mapped[UserStatus] = mapped_column(String, nullable=False, default=UserStatus.ACTIVE)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -124,6 +132,12 @@ class User(Base):
         "Role",
         back_populates="users",
         foreign_keys=[role_id],
+    )
+
+    branch: Mapped[Optional["Branch"]] = relationship(
+        "Branch",
+        foreign_keys=[branch_id],
+        back_populates="members",
     )
 
     # Removed custom __init__; SQLAlchemy handles defaults and values automatically
@@ -203,6 +217,13 @@ class User(Base):
         "VolunteerHoursSubmission",
         foreign_keys="VolunteerHoursSubmission.user_id",
         back_populates="member",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="user",
         cascade="all, delete-orphan",
         lazy="dynamic",
     )

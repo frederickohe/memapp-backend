@@ -25,6 +25,10 @@ class NewsResponse(BaseModel):
     title: str
     content: str
     summary: Optional[str] = None
+    content_type: str
+    is_impact_story: bool
+    event_date: Optional[datetime] = None
+    event_location: Optional[str] = None
     is_published: bool
     created_at: datetime
     updated_at: datetime

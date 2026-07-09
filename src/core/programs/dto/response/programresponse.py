@@ -56,6 +56,7 @@ class ProgramResponse(BaseModel):
     is_published: bool
     allow_registration: bool
     created_by: str
+    metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     
@@ -83,6 +84,7 @@ class ProgramDetailResponse(BaseModel):
     forms: List[ProgramFormResponse] = []
     participant_count: int = 0
     participants: List[UserBasicResponse] = []
+    metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     

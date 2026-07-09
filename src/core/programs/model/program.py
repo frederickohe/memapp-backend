@@ -71,6 +71,7 @@ class Program(Base):
     # Optional: Category/tags for classification
     category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
     
     # Program settings
     is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -85,6 +86,7 @@ class Program(Base):
     
     # Relationships
     creator: Mapped["User"] = relationship("User", foreign_keys=[created_by], back_populates="created_programs")
+    branch: Mapped[Optional["Branch"]] = relationship("Branch", foreign_keys=[branch_id])
     
     # Many-to-many relationship with Form
     forms: Mapped[List["Form"]] = relationship(

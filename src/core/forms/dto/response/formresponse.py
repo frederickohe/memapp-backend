@@ -59,11 +59,48 @@ class FormResponseDataResponse(BaseModel):
     id: str
     form_id: str
     user_id: str
+    user_name: Optional[str] = None
+    user_email: Optional[str] = None
     data: Dict[str, Any]
     notes: Optional[str] = None
     is_submitted: bool
     created_at: datetime
     updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class FieldOptionCount(BaseModel):
+    """Count of responses per option for choice fields"""
+    option: str
+    count: int
+
+
+class FieldAnalytics(BaseModel):
+    """Analytics for a single form field"""
+    name: str
+    label: str
+    field_type: str
+    total_answered: int = 0
+    option_counts: Optional[List[FieldOptionCount]] = None
+
+
+class DailyResponseCount(BaseModel):
+    """Response count grouped by date"""
+    date: str
+    count: int
+
+
+class FormAnalyticsResponse(BaseModel):
+    """Analytics summary for a form"""
+    form_id: str
+    form_title: str
+    total_responses: int
+    responses_last_7_days: int
+    responses_last_30_days: int
+    daily_counts: List[DailyResponseCount]
+    field_analytics: List[FieldAnalytics]
     
     class Config:
         from_attributes = True

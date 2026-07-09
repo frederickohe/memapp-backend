@@ -1,16 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
-from core.auth.service.sessiondriver import SessionDriver, TokenData
-from fastapi_jwt_auth import AuthJWT
-from core.exceptions import *
-import jwt
-
-from utilities.dbconfig import SessionLocal
-from sqlalchemy.orm import Session
 import logging
-from core.programs.model.program import Program
+
+from sqlalchemy.orm import Session
+
+from core.auth.dependencies import get_current_user, get_db
 from core.user.model.User import User
 
 # DTO Models
@@ -31,62 +26,14 @@ from core.programs.dto.request.programrequest import (
 )
 
 from core.programs.service.programservice import ProgramService
-from fastapi_jwt_auth.exceptions import MissingTokenError
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-# Helper functions
-def validate_token(authjwt: AuthJWT = Depends()):
-    try:
-        authjwt.jwt_required()
-        return authjwt
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=401, 
-            detail="Token expired. Please log in again."
-        )
-    except MissingTokenError:
-        raise HTTPException(
-            status_code=401,
-            detail="No token found. Please create an account and log in.",
-        )
-    except Exception as e:
-        logger.error(f"Token validation error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized"
-        )
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 def check_admin_role(user: User) -> bool:
     """Check if user has admin role"""
     return user.is_admin
-
-
-def get_current_user(authjwt: AuthJWT = Depends(validate_token), db: Session = Depends(get_db)) -> User:
-    """Get the current authenticated user"""
-    try:
-        token_data = authjwt.get_jwt()
-        user_id = token_data.get("sub")
-        
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return user
-    except Exception as e:
-        logger.error(f"Error getting current user: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 # Create router
@@ -145,6 +92,7 @@ async def list_programs(
     status: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     is_published: Optional[bool] = Query(None),
+    branch_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -159,6 +107,7 @@ async def list_programs(
         status=status,
         category=category,
         is_published=is_published,
+        branch_id=branch_id,
         created_by=current_user.id
     )
 

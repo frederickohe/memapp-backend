@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from config import settings
+from core.payments.service.payment_service import PaymentService
 from core.user.model.User import User
-from utilities.deps import get_current_user, get_db
+from core.auth.dependencies import get_current_user, get_db
 
 moolre_routes = APIRouter()
 
@@ -15,20 +16,20 @@ _RETURN_HTML = """<!DOCTYPE html>
   <title>Payment received</title>
   <style>
     body { font-family: system-ui, sans-serif; text-align: center; padding: 48px 24px; }
-    h1 { font-size: 1.25rem; font-weight: 600; }
+    h1 { font-size: 1.25rem; font-weight: 600; color: #0066b3; }
     p { color: #444; line-height: 1.5; }
   </style>
 </head>
 <body>
   <h1>Payment received</h1>
-  <p>You can close this page and return to Swap Pro.</p>
+  <p>Thank you. You can close this page and return to the YMCA Member App.</p>
 </body>
 </html>"""
 
 
 @moolre_routes.get("/return", response_class=HTMLResponse)
 def moolre_return():
-    """Moolre redirects here after hosted checkout; the mobile WebView listens for this URL."""
+    """Moolre redirects here after hosted checkout."""
     return HTMLResponse(content=_RETURN_HTML)
 
 
@@ -37,7 +38,7 @@ def get_moolre_config(
     request: Request,
     user: User = Depends(get_current_user),
 ):
-    """Payment settings for the Flutter app."""
+    """Payment settings for the mobile app."""
     if not settings.MOOLRE_ACCOUNT_NUMBER:
         raise HTTPException(status_code=503, detail="Moolre is not configured")
     request_base = str(request.base_url).rstrip("/")
@@ -54,9 +55,7 @@ def get_moolre_config(
 
 @moolre_routes.post("/webhook")
 async def moolre_webhook(request: Request, db=Depends(get_db)):
-    """Moolre payment callback — confirms swap fees by externalref."""
-    from core.swap.service.swapservice import SwapService
-
+    """Moolre payment callback — confirms YMCA membership payments by externalref."""
     try:
         payload = await request.json()
     except Exception:
@@ -70,9 +69,10 @@ async def moolre_webhook(request: Request, db=Depends(get_db)):
         or payload.get("externalref")
         or ""
     )
-    if status in (1, "1") and externalref and str(externalref).startswith("SWP-INIT-"):
-        try:
-            SwapService(db).confirm_initiator_fee(str(externalref))
-        except Exception:
-            pass
+    if status in (1, "1") and externalref:
+        PaymentService(db).handle_webhook(
+            str(externalref),
+            success=True,
+            gateway_response="Moolre webhook confirmed",
+        )
     return {"status": "ok"}

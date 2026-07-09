@@ -16,11 +16,17 @@ from core.cloudstorage.controller.storagecontoller import storage_routes
 from core.notification.controller.notificationcontroller import notification_routes
 from core.otp.controller.otpcontroller import otp_routes
 from core.news.controller.newscontroller import news_routes
+from core.dashboard.controller.dashboardcontroller import dashboard_routes
 from core.forms.controller.formcontroller import form_routes
 from core.programs.controller.programcontroller import program_routes
 from core.rbac.controller.role_controller import role_routes
 from core.rbac.controller.admin_user_controller import admin_user_routes
+from core.rbac.controller.member_user_controller import member_user_routes
 from core.vhs.controller.vhscontroller import vhs_admin_routes, vhs_member_routes
+from core.payments.controller.payment_controller import payment_member_routes, payment_admin_routes
+from core.paystack.controller.paystack_controller import paystack_routes
+from core.moolre.controller.moolre_controller import moolre_routes
+from core.branches.controller.branch_controller import branch_routes
 from core.rbac.service.permission_service import PermissionService
 
 from utilities.dbconfig import Base, engine, SessionLocal
@@ -108,12 +114,19 @@ app.include_router(user_routes, prefix="/api/v1/user", tags=["User Routes"])
 app.include_router(notification_routes, prefix="/api/v1/notification", tags=["Notification Routes"])
 app.include_router(otp_routes, prefix="/api/v1/otp", tags=["OTP Routes"])
 app.include_router(news_routes, prefix="/api/v1/news", tags=["News Routes"])
+app.include_router(dashboard_routes, prefix="/api/v1/dashboard", tags=["Dashboard Routes"])
 app.include_router(form_routes, prefix="/api/v1/form", tags=["Forms Routes"])
 app.include_router(program_routes, prefix="/api/v1/program", tags=["Programs Routes"])
 app.include_router(role_routes, prefix="/api/v1/admin", tags=["Admin RBAC"])
 app.include_router(admin_user_routes, prefix="/api/v1/admin", tags=["Admin Users"])
+app.include_router(member_user_routes, prefix="/api/v1/admin", tags=["Admin Members"])
 app.include_router(vhs_admin_routes, prefix="/api/v1/admin", tags=["Admin VHS"])
 app.include_router(vhs_member_routes, prefix="/api/v1/vhs", tags=["Volunteer Hours"])
+app.include_router(payment_member_routes, prefix="/api/v1/payments", tags=["Member Payments"])
+app.include_router(payment_admin_routes, prefix="/api/v1/payments/admin", tags=["Admin Payments"])
+app.include_router(paystack_routes, prefix="/api/v1/paystack", tags=["Paystack"])
+app.include_router(moolre_routes, prefix="/api/v1/moolre", tags=["Moolre"])
+app.include_router(branch_routes, prefix="/api/v1/admin", tags=["Branches & Regions"])
 
 # JWT Authentication Settings
 

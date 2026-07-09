@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from config import settings
+from core.auth.dependencies import get_current_user, get_db
+from core.payments.service.payment_service import PaymentService
 from core.paystack.dto.request.paystack_request import PaystackInitializeRequest
 from core.paystack.dto.response.paystack_response import (
     PaystackConfigResponse,
@@ -10,7 +12,6 @@ from core.paystack.dto.response.paystack_response import (
 )
 from core.paystack.service.paystack_service import PaystackService
 from core.user.model.User import User
-from utilities.deps import get_current_user, get_db
 
 paystack_routes = APIRouter()
 
@@ -22,13 +23,13 @@ _PAYSTACK_RETURN_HTML = """<!DOCTYPE html>
   <title>Payment received</title>
   <style>
     body { font-family: system-ui, sans-serif; text-align: center; padding: 48px 24px; }
-    h1 { font-size: 1.25rem; font-weight: 600; }
+    h1 { font-size: 1.25rem; font-weight: 600; color: #0066b3; }
     p { color: #444; line-height: 1.5; }
   </style>
 </head>
 <body>
   <h1>Payment received</h1>
-  <p>You can close this page and return to Swap Pro.</p>
+  <p>Thank you. You can close this page and return to the YMCA Member App.</p>
 </body>
 </html>"""
 
@@ -78,7 +79,7 @@ async def verify_paystack_transaction(
 
 @paystack_routes.get("/transaction/banks")
 async def get_paystack_banks(
-    country: str = Query("nigeria", description="Country code (e.g. nigeria, ghana)"),
+    country: str = Query("ghana", description="Country code (e.g. nigeria, ghana)"),
     user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -86,3 +87,24 @@ async def get_paystack_banks(
     paystack_service = PaystackService(db)
     banks = await paystack_service.list_banks(country)
     return {"status": True, "data": banks}
+
+
+@paystack_routes.post("/webhook")
+async def paystack_webhook(request: Request, db=Depends(get_db)):
+    """Paystack charge.success webhook — confirms YMCA membership payments."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "invalid payload"}
+
+    event = payload.get("event")
+    data = payload.get("data") or {}
+    reference = data.get("reference", "")
+
+    if event == "charge.success" and reference:
+        PaymentService(db).handle_webhook(
+            str(reference),
+            success=True,
+            gateway_response=data.get("gateway_response", "Paystack webhook confirmed"),
+        )
+    return {"status": "ok"}

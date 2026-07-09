@@ -35,11 +35,14 @@ PERMISSION_CATALOGUE: List[Tuple[str, str, str]] = [
     ("finance.manage", "Finance", "Manage payments and payouts"),
     ("settings.view", "Settings", "View system settings"),
     ("settings.update", "Settings", "Update system settings"),
-    ("analytics.view", "Analytics", "View analytics dashboards"),
+    ("analytics.view", "Progress", "View progress dashboards"),
     ("messages.view", "Messages", "View messages"),
     ("messages.send", "Messages", "Send messages"),
     ("vhs.view", "Volunteer Hours", "View volunteer hours submissions"),
     ("vhs.review", "Volunteer Hours", "Review and approve volunteer hours submissions"),
+    ("branches.view", "Branches", "View regions and branches"),
+    ("branches.create", "Branches", "Create regions and branches"),
+    ("branches.update", "Branches", "Update regions, branches, and assign presidents"),
 ]
 
 SYSTEM_ROLES: List[Tuple[str, str]] = [
@@ -96,6 +99,9 @@ ROLE_PERMISSIONS: Dict[str, Iterable[str]] = {
         "messages.send",
         "vhs.view",
         "vhs.review",
+        "branches.view",
+        "branches.create",
+        "branches.update",
     ],
     "regional_admin": [
         "members.view",
@@ -119,6 +125,7 @@ ROLE_PERMISSIONS: Dict[str, Iterable[str]] = {
         "messages.send",
         "vhs.view",
         "vhs.review",
+        "branches.view",
     ],
     "branch_admin": [
         "members.view",
@@ -131,6 +138,7 @@ ROLE_PERMISSIONS: Dict[str, Iterable[str]] = {
         "messages.send",
         "vhs.view",
         "vhs.review",
+        "branches.view",
     ],
 }
 
