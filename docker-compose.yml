@@ -73,9 +73,22 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       DEBUG: ${DEBUG:-false}
       DB_ECHO: ${DB_ECHO:-false}
-      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-false}
       BASE_FRONTEND_URL: ${BASE_FRONTEND_URL:-https://ymemberapp.com}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-https://api.ymemberapp.com}
+
+      # Moolre SMS Configuration
+      MOOLRE_API_URL: ${MOOLRE_API_URL:-https://api.moolre.com}
+      MOOLRE_API_USER: ${MOOLRE_API_USER:-}
+      MOOLRE_API_KEY: ${MOOLRE_API_KEY:-}
+      MOOLRE_API_PUBKEY: ${MOOLRE_API_PUBKEY:-}
+      MOOLRE_VAS_KEY: ${MOOLRE_VAS_KEY:-}
+      MOOLRE_ACCOUNT_NUMBER: ${MOOLRE_ACCOUNT_NUMBER:-}
+      MOOLRE_SENDER_ID: ${MOOLRE_SENDER_ID:-YMemberApp}
+      MOOLRE_CALLBACK_URL: ${MOOLRE_CALLBACK_URL:-}
+      MOOLRE_MERCHANT_CODE: ${MOOLRE_MERCHANT_CODE:-}
+      MOOLRE_USSD_SHORT_CODE: ${MOOLRE_USSD_SHORT_CODE:-*920*48#}
+      MOOLRE_DEFAULT_CHANNEL: ${MOOLRE_DEFAULT_CHANNEL:-13}
     depends_on:
       - db
       - redis

@@ -14,7 +14,6 @@ from utilities.phone import normalize_phone
 from core.otp.dto.response.otp_send_response import OTPSendResponse
 from core.moolre.service.moolreservice import MoolreException
 from core.sms.service.sms_factory import get_sms_service
-from core.wirepick.service.wirepickservice import WirepickSMSException
 from config import settings
 import logging
 
@@ -92,7 +91,7 @@ class OTPService:
                         message=f"Failed to send OTP. SMS provider error."
                     )
                     
-            except (WirepickSMSException, MoolreException) as e:
+            except MoolreException as e:
                 # SMS service error, rollback OTP creation
                 self.db.delete(otp_record)
                 self.db.commit()
@@ -130,7 +129,7 @@ class OTPService:
             self.db.commit()
             self.db.refresh(otp_record)
 
-            subject = "Your Swappro verification code"
+            subject = "Your YMemberApp verification code"
             body = f"Your verification code is: {otp_code}. Valid for {settings.OTP_EXPIRE_SECONDS} seconds."
 
             smtp_host = settings.ZEPTOMAIL_SMTP_HOST
@@ -138,7 +137,7 @@ class OTPService:
             smtp_username = settings.ZEPTOMAIL_SMTP_USERNAME
             smtp_password = settings.ZEPTOMAIL_SMTP_PASSWORD
 
-            sender_domain = os.getenv("ZEPTOMAIL_SENDER_DOMAIN", "useswappro.com").strip()
+            sender_domain = os.getenv("ZEPTOMAIL_SENDER_DOMAIN", "ymemberapp.com").strip()
             from_email = settings.ZEPTOMAIL_FROM_EMAIL or f"no-reply@{sender_domain}"
 
             if not smtp_password:

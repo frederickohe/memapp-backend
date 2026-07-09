@@ -37,29 +37,32 @@ done
 # Ensure Alembic migrations folder exists
 mkdir -p alembic/versions
 
-# Autogenerate migrations only when AUTO_MIGRATE=true
-if [ "${AUTO_MIGRATE}" = "true" ]; then
-	# If there are no revision files in alembic/versions, create an initial autogenerate
-	if [ -z "$(ls -A alembic/versions 2>/dev/null)" ]; then
+# Autogenerate migrations only when AUTO_MIGRATE is explicitly enabled (dev only).
+AUTO_MIGRATE_NORMALIZED=$(printf '%s' "${AUTO_MIGRATE:-false}" | tr '[:upper:]' '[:lower:]')
+if [ "${AUTO_MIGRATE_NORMALIZED}" = "true" ]; then
+	REVISION_FILES=$(find alembic/versions -maxdepth 1 -name '*.py' -type f 2>/dev/null)
+	if [ -z "${REVISION_FILES}" ]; then
 		echo "No Alembic revisions found — creating initial revision"
 		python -m alembic revision --autogenerate -m "initial" || true
 	else
-		# Create an autogenerate revision for any model changes, then delete it if empty
 		echo "AUTO_MIGRATE=true — checking for model changes and creating autogenerate revision if needed"
 		python -m alembic revision --autogenerate -m "autogen $(date -u +%Y%m%d%H%M%S)" || true
-		# Inspect the most recent file created
-		LATEST_FILE=$(ls -t alembic/versions | head -n1)
-		if [ -n "$LATEST_FILE" ]; then
-			if ! grep -q "op\." "alembic/versions/$LATEST_FILE"; then
-				echo "No DB-op changes detected in $LATEST_FILE — removing no-op revision"
-				rm -f "alembic/versions/$LATEST_FILE"
+		LATEST_FILE=$(find alembic/versions -maxdepth 1 -name '*.py' -type f -printf '%T@ %f\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)
+		if [ -z "${LATEST_FILE}" ]; then
+			LATEST_FILE=$(ls -t alembic/versions/*.py 2>/dev/null | head -n1)
+			LATEST_FILE=${LATEST_FILE##*/}
+		fi
+		if [ -n "${LATEST_FILE}" ]; then
+			if ! grep -q "op\." "alembic/versions/${LATEST_FILE}"; then
+				echo "No DB-op changes detected in ${LATEST_FILE} — removing no-op revision"
+				rm -f "alembic/versions/${LATEST_FILE}"
 			else
-				echo "Autogenerate created $LATEST_FILE with changes"
+				echo "Autogenerate created ${LATEST_FILE} with changes"
 			fi
 		fi
 	fi
 else
-	echo "AUTO_MIGRATE not set to 'true' — skipping autogenerate step"
+	echo "AUTO_MIGRATE disabled — skipping autogenerate step"
 fi
 
 # Apply migrations to the database

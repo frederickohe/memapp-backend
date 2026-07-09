@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from core.notification.model.Notification import Notification, NotificationStatus, NotificationType
 from core.user.model.User import User
+from core.moolre.service.moolreservice import MoolreException
 from core.sms.service.sms_factory import get_sms_service
-from core.wirepick.service.wirepickservice import WirepickSMSException
 from config import settings
 
 # DTO Models
@@ -75,7 +75,7 @@ class NotificationService:
             raise HTTPException(status_code=404, detail="User not found")
 
         # Determine SMS phone number (use provided or from user profile)
-        sms_phone_to_use = sms_phone or getattr(user, 'phone', None)
+        sms_phone_to_use = sms_phone or getattr(user, 'phone_number', None) or getattr(user, 'phone', None)
         
         # Create notification record
         notification = Notification(
@@ -127,7 +127,7 @@ class NotificationService:
                 
                 self.db.commit()
                 
-        except WirepickSMSException as e:
+        except MoolreException as e:
             # Update notification with failure
             notification = self.db.query(Notification).filter(Notification.id == notification_id).first()
             if notification:
@@ -153,7 +153,8 @@ class NotificationService:
         for user_id in user_ids:
             try:
                 user = self.db.query(User).filter(User.id == user_id).first()
-                if user and hasattr(user, 'phone') and user.phone:
+                phone = getattr(user, 'phone_number', None) or getattr(user, 'phone', None)
+                if user and phone:
                     notification_data = data or {}
                     notification_data['message'] = message
                     
@@ -162,7 +163,7 @@ class NotificationService:
                         notification_type=notification_type,
                         data=notification_data,
                         send_sms=True,
-                        sms_phone=user.phone
+                        sms_phone=phone
                     )
                     
                     results["successful"] += 1

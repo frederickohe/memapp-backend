@@ -42,25 +42,17 @@ class Settings(BaseSettings):
     @property
     def OTP_EXPIRE_SECONDS(self) -> int:
         return int(os.environ.get('OTP_EXPIRE_SECONDS', self.OTP_EXPIRE_MINUTES * 60))
-    # SMS provider: moolre (default) or wirepick (legacy)
+    # SMS provider: moolre
     SMS_PROVIDER: str = os.environ.get('SMS_PROVIDER', 'moolre')
 
-    # Wirepick SMS Configuration (legacy)
-    WIREPICK_API_URL: str = os.environ.get('WIREPICK_API_URL', 'https://api.wirepick.com/httpsms')
-    WIREPICK_CLIENT_ID: str = os.environ.get('WIREPICK_CLIENT_ID')
-    WIREPICK_PASSWORD: str = os.environ.get('WIREPICK_PASSWORD')
-    WIREPICK_PUBLIC_KEY: str = os.environ.get('WIREPICK_PUBLIC_KEY')
-    WIREPICK_SENDER_ID: str = os.environ.get('WIREPICK_SENDER_ID')
-    USE_WIREPICK_API_KEY: bool = os.environ.get('USE_WIREPICK_API_KEY', 'false').lower() == 'true'
-
-    # Moolre (payments, SMS, USSD)
+    # Moolre (SMS, payments, USSD)
     MOOLRE_API_URL: str = os.environ.get('MOOLRE_API_URL', 'https://api.moolre.com')
     MOOLRE_API_USER: str = os.environ.get('MOOLRE_API_USER', '')
     MOOLRE_API_KEY: str = os.environ.get('MOOLRE_API_KEY', '')
     MOOLRE_API_PUBKEY: str = os.environ.get('MOOLRE_API_PUBKEY', '')
     MOOLRE_VAS_KEY: str = os.environ.get('MOOLRE_VAS_KEY', '')
     MOOLRE_ACCOUNT_NUMBER: str = os.environ.get('MOOLRE_ACCOUNT_NUMBER', '')
-    MOOLRE_SENDER_ID: str = os.environ.get('MOOLRE_SENDER_ID', 'swappro')
+    MOOLRE_SENDER_ID: str = os.environ.get('MOOLRE_SENDER_ID', 'YMemberApp')
     MOOLRE_CALLBACK_URL: str = os.environ.get('MOOLRE_CALLBACK_URL', '')
     MOOLRE_MERCHANT_CODE: str = os.environ.get('MOOLRE_MERCHANT_CODE', '')
     MOOLRE_USSD_SHORT_CODE: str = os.environ.get('MOOLRE_USSD_SHORT_CODE', '*920*48#')
