@@ -27,6 +27,8 @@ install_from_archive() {
       --exclude '.git/' \
       --exclude 'venv/' \
       --exclude '.venv/' \
+      --exclude '__pycache__/' \
+      --exclude '*.pyc' \
       "$tmpdir"/ "$REPO_DIR"/
   else
     tar -xzf "$archive" -C "$REPO_DIR"
