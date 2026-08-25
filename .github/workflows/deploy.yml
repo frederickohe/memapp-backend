@@ -1,25 +1,97 @@
-name: Deploy to production
+name: CI and deploy
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-memapp-backend-production
-  cancel-in-progress: false
+  group: memapp-backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  ci:
+    name: Check
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy memapp-backend
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax check
+        run: python -m compileall -q -f src main.py
+
+  deploy:
+    name: Deploy production
+    needs: ci
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack release
+        run: |
+          tar -czf memapp-backend.tgz \
+            --exclude='memapp-backend.tgz' \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.env' \
+            --exclude='venv' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            .
+
+      - name: Upload release to server
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: memapp-backend.tgz
+          target: /tmp
+          timeout: 120s
+
+      - name: Install release and restart stack
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script_stop: true
+          command_timeout: 20m
           script: |
             set -euo pipefail
-            bash /var/www/memapp-backend/scripts/deploy.sh
+            REPO="/var/www/memapp-backend"
+            ARCHIVE="/tmp/memapp-backend.tgz"
+            mkdir -p "$REPO/scripts"
+            tmpdir="$(mktemp -d)"
+            tar -xzf "$ARCHIVE" -C "$tmpdir"
+            if [[ -f "$tmpdir/scripts/deploy.sh" ]]; then
+              cp "$tmpdir/scripts/deploy.sh" "$REPO/scripts/deploy.sh"
+              chmod +x "$REPO/scripts/deploy.sh"
+            fi
+            rm -rf "$tmpdir"
+            bash "$REPO/scripts/deploy.sh" "$ARCHIVE"
+            rm -f "$ARCHIVE"
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 https://api.ymemberapp.com/api/v1/ | grep -q "Ymca"; then
+              echo "API is healthy"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "API health check failed"
+          exit 1
