@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, JSON, Enum, Boolean, Integer, ForeignKey
+from sqlalchemy import String, DateTime, JSON, Boolean, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from utilities.dbconfig import Base
@@ -30,9 +30,9 @@ class Notification(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, index=True)
-    type: Mapped[NotificationType] = mapped_column(Enum(NotificationType), nullable=False)
-    data: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
-    status: Mapped[NotificationStatus] = mapped_column(Enum(NotificationStatus), nullable=False, default=NotificationStatus.UNREAD, index=True)
+    type: Mapped[str] = mapped_column(String, nullable=False)
+    data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String, nullable=False, default=NotificationStatus.UNREAD, index=True)
     
     # SMS specific fields
     sms_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -2,7 +2,8 @@ from datetime import datetime
 import secrets
 import string
 from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, load_only
 from fastapi import HTTPException, status
 from core.notification.model.Notification import Notification, NotificationStatus, NotificationType
 from core.user.model.User import User
@@ -18,12 +19,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_NOTIFICATION_CORE_COLUMNS = (
+    Notification.id,
+    Notification.user_id,
+    Notification.type,
+    Notification.data,
+    Notification.status,
+    Notification.created_at,
+    Notification.read_at,
+)
+
 
 class NotificationService:
     def __init__(self, db: Session):
         self.db = db
-        self.sms_service = get_sms_service()
+        self._sms_service = None
         self.sms_enabled = getattr(settings, 'SMS_NOTIFICATION_ENABLED', True)
+
+    @property
+    def sms_service(self):
+        if self._sms_service is None:
+            self._sms_service = get_sms_service()
+        return self._sms_service
 
     def _format_sms_message(self, notification_type: NotificationType, data: dict) -> str:
         """Format notification content for SMS based on type and data"""
@@ -180,7 +197,12 @@ class NotificationService:
 
     def get_notification(self, notification_id: str) -> NotificationResponse:
         """Get a specific notification by ID"""
-        notification = self.db.query(Notification).filter(Notification.id == notification_id).first()
+        notification = (
+            self.db.query(Notification)
+            .options(load_only(*_NOTIFICATION_CORE_COLUMNS))
+            .filter(Notification.id == notification_id)
+            .first()
+        )
         if not notification:
             raise HTTPException(status_code=404, detail="Notification not found")
         
@@ -195,7 +217,11 @@ class NotificationService:
         notification_type: Optional[NotificationType] = None
     ) -> PagedNotificationResponse:
         """Get paginated notifications for a user with optional filters"""
-        query = self.db.query(Notification).filter(Notification.user_id == user_id)
+        query = (
+            self.db.query(Notification)
+            .options(load_only(*_NOTIFICATION_CORE_COLUMNS))
+            .filter(Notification.user_id == user_id)
+        )
 
         if status:
             query = query.filter(Notification.status == status)
@@ -213,7 +239,16 @@ class NotificationService:
             total=total,
             page=page,
             size=size,
-            pages=(total + size - 1) // size  # Calculate total pages
+        )
+
+    def count_unread(self, user_id: str) -> int:
+        # COUNT(id) avoids selecting mapped SMS columns that older DBs may lack.
+        return (
+            self.db.query(func.count(Notification.id))
+            .filter(Notification.user_id == user_id)
+            .filter(Notification.status == NotificationStatus.UNREAD)
+            .scalar()
+            or 0
         )
 
     def update_notification(
@@ -223,7 +258,12 @@ class NotificationService:
         data: Optional[dict] = None
     ) -> NotificationResponse:
         """Update a notification's status and/or data"""
-        notification = self.db.query(Notification).filter(Notification.id == notification_id).first()
+        notification = (
+            self.db.query(Notification)
+            .options(load_only(*_NOTIFICATION_CORE_COLUMNS))
+            .filter(Notification.id == notification_id)
+            .first()
+        )
         if not notification:
             raise HTTPException(status_code=404, detail="Notification not found")
 
@@ -236,8 +276,6 @@ class NotificationService:
             notification.data = data
 
         self.db.commit()
-        self.db.refresh(notification)
-
         return NotificationResponse.from_orm(notification)
 
     def mark_notification_as_read(self, notification_id: str) -> NotificationResponse:
@@ -262,7 +300,12 @@ class NotificationService:
 
     def delete_notification(self, notification_id: str) -> None:
         """Delete a notification"""
-        notification = self.db.query(Notification).filter(Notification.id == notification_id).first()
+        notification = (
+            self.db.query(Notification)
+            .options(load_only(*_NOTIFICATION_CORE_COLUMNS))
+            .filter(Notification.id == notification_id)
+            .first()
+        )
         if not notification:
             raise HTTPException(status_code=404, detail="Notification not found")
 
