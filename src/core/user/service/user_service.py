@@ -20,7 +20,20 @@ from core.user.dto.response.message_response import MessageResponse
 from core.user.dto.response.user_response import UserResponse
 from core.user.dto.request.user_update_request import UserUpdateRequest
 
-# Service Class
+def connected_user_ids(value):
+    if not value:
+        return None
+    if not isinstance(value, list):
+        return None
+    ids = []
+    for item in value:
+        if isinstance(item, str) and item:
+            ids.append(item)
+        elif hasattr(item, "id") and item.id:
+            ids.append(item.id)
+    return ids or None
+
+
 class UserService:
     def __init__(self, db: Session):
         self.db = db
@@ -28,6 +41,12 @@ class UserService:
     def get_current_user(self, identifier: str) -> UserResponse:
         # Try to find by email first, then by id as a fallback.
         user = self.db.query(User).filter(User.email == identifier).first()
+        if not user:
+            user = (
+                self.db.query(User)
+                .filter(User.email.ilike(identifier))
+                .first()
+            )
         if not user:
             user = self.db.query(User).filter(User.id == identifier).first()
         if not user:
@@ -55,7 +74,7 @@ class UserService:
             skills=user.skills,
             experiences=user.experiences,
             
-            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            connected_users=connected_user_ids(user.connected_users),
             
             facebook_url=user.facebook_url,
             whatsapp_number=user.whatsapp_number,
@@ -99,7 +118,7 @@ class UserService:
             skills=user.skills,
             experiences=user.experiences,
             
-            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            connected_users=connected_user_ids(user.connected_users),
             
             facebook_url=user.facebook_url,
             whatsapp_number=user.whatsapp_number,
@@ -144,7 +163,7 @@ class UserService:
             skills=user.skills,
             experiences=user.experiences,
             
-            connected_users=[u.id for u in user.connected_users] if user.connected_users else None,
+            connected_users=connected_user_ids(user.connected_users),
             
             facebook_url=user.facebook_url,
             whatsapp_number=user.whatsapp_number,
@@ -165,7 +184,7 @@ class UserService:
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        user.is_active = enabled
+        user.enabled = enabled
         self.db.commit()
         status_msg = "enabled" if enabled else "disabled"
         return MessageResponse(message=f"User {status_msg} successfully")

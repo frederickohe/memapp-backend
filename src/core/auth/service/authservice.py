@@ -3,6 +3,8 @@ from fastapi.responses import JSONResponse
 import jwt
 from passlib.context import CryptContext
 from fastapi_jwt_auth import AuthJWT
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from fastapi import HTTPException
@@ -16,6 +18,7 @@ from core.rbac.service.rbac_service import RbacService
 from core.rbac.service.role_service import RoleService
 from core.rbac.service.admin_user_service import AdminUserService
 from core.otp.service.otpservice import OTPService
+from utilities.phone import normalize_phone
 import secrets
 import string
 import logging
@@ -44,6 +47,15 @@ class AuthService:
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for i in range(20))
 
+    def generate_member_id(self) -> str:
+        """Generate a unique public membership ID."""
+        for _ in range(8):
+            candidate = "YID" + "".join(secrets.choice(string.digits) for _ in range(10))
+            exists = self.db.query(User).filter(User.member_id == candidate).first()
+            if not exists:
+                return candidate
+        return "YID" + self.generate_user_id()[:10]
+
     def _build_token_claims(self, user: User) -> dict:
         claims = {"sub": user.email, "user_type": user.user_type}
         if user.role_id:
@@ -52,7 +64,24 @@ class AuthService:
             claims["role"] = user.role
         return claims
 
-    def _issue_tokens(self, user: User) -> JSONResponse:
+    def _member_summary(self, user: User) -> dict:
+        return {
+            "id": user.id,
+            "fullname": user.fullname,
+            "email": user.email,
+            "phone_number": user.phone_number,
+            "nationality": user.nationality,
+            "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
+            "gender": user.gender,
+            "address": user.address,
+            "membership_type": user.membership_type,
+            "current_branch": user.current_branch,
+            "member_id": user.member_id,
+            "enabled": user.enabled,
+            "user_type": user.user_type,
+        }
+
+    def _token_body(self, user: User, message: str = "Login successful") -> dict:
         claims = self._build_token_claims(user)
         access_token = self.session_driver.create_access_token(
             data=claims,
@@ -61,88 +90,116 @@ class AuthService:
         refresh_token = self.session_driver.create_refresh_token(data=claims)
         self.session_driver.store_tokens(access_token, refresh_token)
 
-        return JSONResponse(
-            status_code=200,
-            content={
-                "status": "Login successful",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "user_type": user.user_type,
-                "role": user.role,
-                "role_id": user.role_id,
-            },
-        )
+        return {
+            "status": message,
+            "message": message,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": self.session_driver.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user_type": user.user_type,
+            "role": user.role,
+            "role_id": user.role_id,
+            "user_id": user.id,
+            "user": self._member_summary(user),
+        }
+
+    def _issue_tokens(self, user: User, message: str = "Login successful") -> JSONResponse:
+        return JSONResponse(status_code=200, content=self._token_body(user, message))
 
     def create_user(self, request: BaseModel):
-        """Create a new user in the database."""
+        """Create a new member and return an authenticated session."""
+        email = str(request.email).strip().lower()
         existing_user = (
-            self.db.query(User)
-            .filter(
-                (User.email == request.email) | (User.fullname == request.fullname)
-            )
-            .first()
+            self.db.query(User).filter(func.lower(User.email) == email).first()
         )
-
         if existing_user:
-            if existing_user.email == request.email:
-                raise UserAlreadyExistsError(field="email")
-            else:
-                raise UserAlreadyExistsError(field="fullname")
-            
+            raise UserAlreadyExistsError(field="email")
+
         user_id = self.generate_user_id()
+        phone = normalize_phone(request.phone_number) or None
+        whatsapp = normalize_phone(request.whatsapp_number) or phone
+        if whatsapp and len(whatsapp) > 20:
+            whatsapp = whatsapp[:20]
 
         db_user = User(
             id=user_id,
             fullname=request.fullname,
-            phone_number=request.phone_number,
-            email=request.email,
+            phone_number=phone,
+            email=email,
             hashed_password=self.hash_password(request.password),
             profile_picture_url=request.profile_picture_url,
-            
             nationality=request.nationality,
             date_of_birth=request.date_of_birth,
             gender=request.gender,
             address=request.address,
-            
             membership_type=request.membership_type,
             current_branch=request.current_branch,
-            member_id=request.member_id,
-            
+            member_id=request.member_id or self.generate_member_id(),
             facebook_url=request.facebook_url,
-            whatsapp_number=request.whatsapp_number,
+            whatsapp_number=whatsapp,
             linkedin_url=request.linkedin_url,
             twitter_url=request.twitter_url,
             instagram_url=request.instagram_url,
-            
-            
             occupation=request.occupation,
             organization_workplace=request.organization_workplace,
-            skills=request.skills,
-            experiences=request.experiences,
-            
-            profile_sharing=request.profile_sharing,
-            in_app_notification=request.in_app_notification,
-            sms_notification=request.sms_notification,
-
+            skills=request.skills or [],
+            experiences=request.experiences or [],
+            profile_sharing=bool(request.profile_sharing),
+            in_app_notification=bool(request.in_app_notification),
+            sms_notification=bool(request.sms_notification),
             user_type=UserType.MEMBER,
-            created_at=datetime.now(timezone.utc),
+            enabled=True,
+            created_at=request.created_at or datetime.now(timezone.utc),
         )
 
-        self.db.add(db_user)
-        self.db.commit()
-        self.db.refresh(db_user)
+        try:
+            self.db.add(db_user)
+            self.db.commit()
+            self.db.refresh(db_user)
+        except IntegrityError as exc:
+            self.db.rollback()
+            detail = str(getattr(exc, "orig", exc)).lower()
+            if "email" in detail:
+                raise UserAlreadyExistsError(field="email")
+            if "member_id" in detail:
+                db_user.member_id = self.generate_member_id()
+                try:
+                    self.db.add(db_user)
+                    self.db.commit()
+                    self.db.refresh(db_user)
+                except IntegrityError:
+                    self.db.rollback()
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not create account. Please try again.",
+                    )
+            elif "fullname" in detail:
+                db_user.fullname = f"{request.fullname} {user_id[-4:]}"
+                try:
+                    self.db.add(db_user)
+                    self.db.commit()
+                    self.db.refresh(db_user)
+                except IntegrityError:
+                    self.db.rollback()
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not create account. Please try again.",
+                    )
+            else:
+                logger.error(f"Signup integrity error: {exc}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not create account. Please try again.",
+                )
 
-        # Send OTP to phone for verification
-        otp_result = self.otp_service.send_otp_phone(request.phone_number)
-        
-        return {
-            "message": "User account created successfully. Please verify your phone number with the OTP sent to you.",
-            "user_id": db_user.id,
-            "verification_required": True,
-            "otp_sent": otp_result.success
-        }
+        if phone:
+            try:
+                self.otp_service.send_otp_phone(phone)
+            except Exception as exc:
+                logger.warning(f"Signup OTP send skipped for {phone}: {exc}")
+
+        return self._issue_tokens(db_user, "Account created successfully")
     
     def verify_and_enable_user(self, phone: str, otp: str):
         """Verify OTP and enable user account"""
@@ -177,13 +234,24 @@ class AuthService:
         }
            
     def authenticate_user(self, email: str, password: str):
-        db_user = self.db.query(User).filter(User.email == email).first()
+        normalized_email = (email or "").strip().lower()
+        db_user = (
+            self.db.query(User)
+            .filter(func.lower(User.email) == normalized_email)
+            .first()
+        )
 
         if not db_user:
             raise InvalidCredentialsError()
 
         if not self.verify_password(password, db_user.hashed_password):
             raise InvalidCredentialsError()
+
+        if db_user.user_type == UserType.MEMBER and not db_user.enabled:
+            db_user.enabled = True
+            db_user.updated_at = datetime.now(timezone.utc)
+            self.db.commit()
+            self.db.refresh(db_user)
 
         return db_user
 

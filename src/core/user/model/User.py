@@ -49,7 +49,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(20), nullable=False, unique=True, primary_key=True)
-    fullname: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    fullname: Mapped[str] = mapped_column(String, nullable=False, unique=False)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     phone_number: Mapped[Optional[str]] = mapped_column(String)
