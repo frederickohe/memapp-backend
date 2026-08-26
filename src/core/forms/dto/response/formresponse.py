@@ -47,6 +47,7 @@ class FormDetailResponse(BaseModel):
     fields: List[FormFieldResponse]
     is_active: bool
     response_count: int = 0
+    submitted: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
     

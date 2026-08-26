@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 
-from core.auth.dependencies import get_current_user, get_db, require_admin
+from core.auth.dependencies import get_db, require_admin, optional_admin_user
 from core.user.model.User import User
 from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
 from core.news.dto.request.newsrequest import NewsCreateRequest, NewsUpdateRequest
@@ -18,12 +18,17 @@ def get_published_news(
     size: int = Query(10, ge=1, le=50),
     sort_by: str = Query("published_at", regex="^(published_at|created_at|event_date)$"),
     content_type: Optional[str] = Query(None, regex="^(NEWS|EVENT)$"),
+    impact_only: bool = Query(False),
     db=Depends(get_db),
 ):
     """Get all published news and events with pagination"""
     news_service = NewsService(db)
     return news_service.get_all_published_news(
-        page=page, size=size, sort_by=sort_by, content_type=content_type
+        page=page,
+        size=size,
+        sort_by=sort_by,
+        content_type=content_type,
+        impact_only=impact_only,
     )
 
 
@@ -48,10 +53,14 @@ def get_upcoming_events(
 
 
 @news_routes.get("/{news_id}", response_model=NewsResponse)
-def get_news_detail(news_id: str, db=Depends(get_db)):
-    """Get a specific news segment"""
+def get_news_detail(
+    news_id: str,
+    db=Depends(get_db),
+    admin: Optional[User] = Depends(optional_admin_user),
+):
+    """Get a specific news segment. Drafts are visible to admins only."""
     news_service = NewsService(db)
-    return news_service.get_news(news_id)
+    return news_service.get_news(news_id, published_only=admin is None)
 
 
 # ============= ADMIN ROUTES =============

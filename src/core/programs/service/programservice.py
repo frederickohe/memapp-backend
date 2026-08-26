@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import string
 from typing import List, Optional, Dict, Any
@@ -29,16 +29,26 @@ class ProgramService:
         """Generate a unique program ID"""
         return "PROG_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     
+    def _aware(self, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+
     def _get_program_status(self, program: Program) -> ProgramStatus:
         """Determine program status based on dates"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         if program.status == ProgramStatus.CANCELLED:
             return ProgramStatus.CANCELLED
+
+        start = self._aware(program.starting_date)
+        end = self._aware(program.end_date)
         
-        if now < program.starting_date:
+        if start and now < start:
             return ProgramStatus.UPCOMING
-        elif now > program.end_date:
+        elif end and now > end:
             return ProgramStatus.COMPLETED
         else:
             return ProgramStatus.ONGOING
@@ -234,12 +244,11 @@ class ProgramService:
         self,
         program_id: str,
         user_id: str,
-        form_id: str,
-        form_data: Dict[str, Any],
+        form_id: Optional[str] = None,
+        form_data: Optional[Dict[str, Any]] = None,
         notes: Optional[str] = None
     ) -> ProgramEnrollmentResponse:
-        """Enroll a user in a program by submitting a program form"""
-        # Verify program exists
+        """Enroll a user in a program by submitting a program form when one is linked"""
         program = self.db.query(Program).filter(Program.id == program_id).first()
         if not program:
             raise HTTPException(status_code=404, detail="Program not found")
@@ -250,49 +259,68 @@ class ProgramService:
         if not program.allow_registration:
             raise HTTPException(status_code=400, detail="Registration is not allowed for this program")
         
-        # Verify form exists and belongs to the program
-        form = self.db.query(Form).filter(Form.id == form_id).first()
-        if not form:
-            raise HTTPException(status_code=404, detail="Form not found")
-        
-        if form not in program.forms:
-            raise HTTPException(status_code=400, detail="Form is not associated with this program")
-        
-        # Verify user exists
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
-        # Check if user already has a form response for this form
-        existing_response = self.db.query(FormResponse).filter(
-            and_(
-                FormResponse.form_id == form_id,
-                FormResponse.user_id == user_id
+
+        if program.capacity is not None and user not in program.participants:
+            if len(program.participants) >= program.capacity:
+                raise HTTPException(status_code=400, detail="Program is at full capacity")
+
+        resolved_form_id = form_id
+        if not resolved_form_id and program.forms:
+            resolved_form_id = program.forms[0].id
+
+        if resolved_form_id:
+            form = self.db.query(Form).filter(Form.id == resolved_form_id).first()
+            if not form:
+                raise HTTPException(status_code=404, detail="Form not found")
+            if form not in program.forms:
+                raise HTTPException(status_code=400, detail="Form is not associated with this program")
+
+            existing_response = self.db.query(FormResponse).filter(
+                and_(
+                    FormResponse.form_id == resolved_form_id,
+                    FormResponse.user_id == user_id
+                )
+            ).first()
+            if existing_response:
+                raise HTTPException(status_code=400, detail="You have already applied for this program")
+
+            form_response = FormResponse(
+                id="FR_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)),
+                form_id=resolved_form_id,
+                user_id=user_id,
+                data=form_data or {},
+                notes=notes,
+                is_submitted=True
             )
-        ).first()
-        
-        if existing_response:
-            raise HTTPException(status_code=400, detail="User has already submitted this form")
-        
-        # Create form response (enrollment is now a form submission)
-        form_response = FormResponse(
-            id="FR_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)),
-            form_id=form_id,
-            user_id=user_id,
-            data=form_data,
-            notes=notes,
-            is_submitted=True
-        )
-        
-        # Add user to participants if not already there
-        if user not in program.participants:
-            program.participants.append(user)
-        
-        self.db.add(form_response)
+            self.db.add(form_response)
+
+            if user not in program.participants:
+                program.participants.append(user)
+
+            self.db.commit()
+            self.db.refresh(form_response)
+            return self._convert_form_response_to_enrollment_dto(form_response, program_id=program.id)
+
+        if user in program.participants:
+            raise HTTPException(status_code=400, detail="You are already enrolled in this program")
+
+        program.participants.append(user)
         self.db.commit()
-        self.db.refresh(form_response)
-        
-        return self._convert_form_response_to_enrollment_dto(form_response)
+
+        return ProgramEnrollmentResponse(
+            id="ENRL_" + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)),
+            program_id=program.id,
+            user_id=user.id,
+            status="ACTIVE",
+            completion_percentage=0,
+            enrolled_at=datetime.now(timezone.utc),
+            completed_at=None,
+            dropped_at=None,
+            notes=notes
+        )
     
     def unenroll_user(self, program_id: str, user_id: str) -> Dict[str, str]:
         """Unenroll a user from a program by removing their form responses for the program's forms"""
@@ -357,7 +385,7 @@ class ProgramService:
         skip = (page - 1) * size
         form_responses = query.offset(skip).limit(size).all()
         
-        enrollment_dtos = [self._convert_form_response_to_enrollment_dto(fr) for fr in form_responses]
+        enrollment_dtos = [self._convert_form_response_to_enrollment_dto(fr, program_id=program_id) for fr in form_responses]
         
         return ProgramEnrollmentsListResponse(
             program_id=program_id,
@@ -397,7 +425,7 @@ class ProgramService:
         skip = (page - 1) * size
         programs = query.offset(skip).limit(size).all()
         
-        program_dtos = [ProgramResponse.from_orm(p) for p in programs]
+        program_dtos = [self._convert_program_to_dto(p) for p in programs]
         
         return UserProgramsResponse(
             total=total,
@@ -466,33 +494,73 @@ class ProgramService:
         self.db.commit()
         self.db.refresh(form_response)
         
-        return self._convert_form_response_to_enrollment_dto(form_response)
+        return self._convert_form_response_to_enrollment_dto(form_response, program_id=program_id)
     
+    def _parse_form_fields(self, fields: Any) -> List[FormFieldResponse]:
+        if not fields:
+            return []
+
+        if isinstance(fields, list):
+            items = fields
+        elif isinstance(fields, dict):
+            items = [
+                value
+                for _, value in sorted(
+                    fields.items(),
+                    key=lambda item: item[1].get("order", 0) if isinstance(item[1], dict) else 0,
+                )
+            ]
+        else:
+            return []
+
+        parsed = []
+        for field_info in items:
+            if not isinstance(field_info, dict):
+                continue
+            parsed.append(FormFieldResponse(
+                name=field_info.get("name", ""),
+                label=field_info.get("label", ""),
+                field_type=field_info.get("field_type", "text"),
+                required=field_info.get("required", False),
+                placeholder=field_info.get("placeholder"),
+                options=field_info.get("options"),
+                validation=field_info.get("validation"),
+            ))
+        return parsed
+
+    def _convert_program_to_dto(self, program: Program) -> ProgramResponse:
+        return ProgramResponse(
+            id=program.id,
+            title=program.title,
+            description=program.description,
+            starting_date=program.starting_date,
+            end_date=program.end_date,
+            register_url=program.register_url,
+            youtube_url=program.youtube_url,
+            thumbnail_url=program.thumbnail_url,
+            category=program.category,
+            location=program.location,
+            capacity=program.capacity,
+            status=program.status,
+            is_published=program.is_published,
+            allow_registration=program.allow_registration,
+            created_by=program.created_by,
+            metadata=program.program_metadata,
+            created_at=program.created_at,
+            updated_at=program.updated_at,
+        )
+
     def _convert_program_to_detail_dto(self, program: Program) -> ProgramDetailResponse:
         """Convert program model to detailed DTO"""
-        # Get forms
         forms_data = []
         for form in program.forms:
-            form_fields = []
-            for field_name, field_info in form.fields.items():
-                form_fields.append(FormFieldResponse(
-                    name=field_info.get("name", field_name),
-                    label=field_info.get("label", ""),
-                    field_type=field_info.get("field_type", "text"),
-                    required=field_info.get("required", False),
-                    placeholder=field_info.get("placeholder"),
-                    options=field_info.get("options"),
-                    validation=field_info.get("validation")
-                ))
-            
             forms_data.append(ProgramFormResponse(
                 id=form.id,
                 title=form.title,
                 description=form.description,
-                fields=form_fields
+                fields=self._parse_form_fields(form.fields)
             ))
         
-        # Get participants
         participants_data = []
         for participant in program.participants:
             participants_data.append(UserBasicResponse(
@@ -526,16 +594,16 @@ class ProgramService:
             updated_at=program.updated_at
         )
     
-    def _convert_form_response_to_enrollment_dto(self, form_response: FormResponse) -> ProgramEnrollmentResponse:
+    def _convert_form_response_to_enrollment_dto(self, form_response: FormResponse, program_id: Optional[str] = None) -> ProgramEnrollmentResponse:
         """Convert form response to enrollment DTO"""
         return ProgramEnrollmentResponse(
             id=form_response.id,
-            program_id=None,  # Form response doesn't directly have program_id, but we can fetch from form
+            program_id=program_id,
             user_id=form_response.user_id,
-            status="ACTIVE",  # Form responses are always active unless deleted
-            completion_percentage=100,  # Form is complete once submitted
+            status="ACTIVE",
+            completion_percentage=100,
             enrolled_at=form_response.created_at,
-            completed_at=form_response.created_at,  # Completed when submitted
+            completed_at=form_response.created_at,
             dropped_at=None,
             notes=form_response.notes
         )

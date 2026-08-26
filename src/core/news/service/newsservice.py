@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 import secrets
 import string
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
-from fastapi import HTTPException, status
+from sqlalchemy.orm import Session, subqueryload
+from sqlalchemy import desc
+from fastapi import HTTPException
 from core.news.model.News import News, NewsMedia, MediaType, ContentType
 from core.user.model.User import User
-from core.news.dto.response.newsresponse import NewsResponse, MediaResponse, PagedNewsResponse, MessageResponse
+from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
 
 
 class NewsService:
@@ -33,6 +33,18 @@ class NewsService:
                 order=media_data.get("order", idx),
             )
             news.media.append(media)
+
+    def _news_query(self):
+        return self.db.query(News).options(subqueryload(News.media))
+
+    def _to_response(self, news: News) -> NewsResponse:
+        return NewsResponse.from_orm(news)
+
+    def _assert_can_manage(self, admin_id: str) -> None:
+        """Any authenticated admin can manage org-wide news posts."""
+        admin = self.db.query(User).filter(User.id == admin_id).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin user not found")
     
     def create_news(
         self,
@@ -73,22 +85,25 @@ class NewsService:
         self.db.commit()
         self.db.refresh(news)
         
-        return NewsResponse.from_orm(news)
+        return self._to_response(news)
     
-    def get_news(self, news_id: str) -> NewsResponse:
+    def get_news(self, news_id: str, published_only: bool = False) -> NewsResponse:
         """Get a specific news segment by ID"""
-        news = self.db.query(News).filter(News.id == news_id).first()
+        query = self._news_query().filter(News.id == news_id)
+        if published_only:
+            query = query.filter(News.is_published == True)
+        news = query.first()
         if not news:
             raise HTTPException(status_code=404, detail="News not found")
         
-        return NewsResponse.from_orm(news)
+        return self._to_response(news)
     
     def _published_query(
         self,
         content_type: Optional[str] = None,
         impact_only: bool = False,
     ):
-        query = self.db.query(News).filter(News.is_published == True)
+        query = self._news_query().filter(News.is_published == True)
         if content_type:
             query = query.filter(News.content_type == content_type)
         if impact_only:
@@ -101,9 +116,10 @@ class NewsService:
         size: int = 10,
         sort_by: str = "published_at",
         content_type: Optional[str] = None,
+        impact_only: bool = False,
     ) -> PagedNewsResponse:
         """Get all published news with pagination"""
-        query = self._published_query(content_type=content_type)
+        query = self._published_query(content_type=content_type, impact_only=impact_only)
         
         if sort_by == "published_at":
             query = query.order_by(desc(News.published_at))
@@ -122,7 +138,7 @@ class NewsService:
             total=total,
             page=page,
             size=size,
-            items=[NewsResponse.from_orm(item) for item in items],
+            items=[self._to_response(item) for item in items],
         )
 
     def get_impact_stories(self, limit: int = 5) -> List[NewsResponse]:
@@ -133,7 +149,7 @@ class NewsService:
             .limit(limit)
             .all()
         )
-        return [NewsResponse.from_orm(item) for item in items]
+        return [self._to_response(item) for item in items]
 
     def get_upcoming_events(self, limit: int = 10) -> List[NewsResponse]:
         """Get published upcoming events sorted by event date"""
@@ -145,7 +161,7 @@ class NewsService:
             .limit(limit)
             .all()
         )
-        return [NewsResponse.from_orm(item) for item in items]
+        return [self._to_response(item) for item in items]
     
     def get_admin_news(
         self,
@@ -159,7 +175,7 @@ class NewsService:
         if not admin:
             raise HTTPException(status_code=404, detail="Admin user not found")
         
-        query = self.db.query(News).filter(News.admin_id == admin_id)
+        query = self._news_query().filter(News.admin_id == admin_id)
         
         if published_only:
             query = query.filter(News.is_published == True)
@@ -173,7 +189,7 @@ class NewsService:
             total=total,
             page=page,
             size=size,
-            items=[NewsResponse.from_orm(item) for item in items],
+            items=[self._to_response(item) for item in items],
         )
 
     def get_all_news(
@@ -185,7 +201,7 @@ class NewsService:
         impact_only: Optional[bool] = None,
     ) -> PagedNewsResponse:
         """Get all news for admin management"""
-        query = self.db.query(News)
+        query = self._news_query()
 
         if content_type:
             query = query.filter(News.content_type == content_type)
@@ -203,7 +219,7 @@ class NewsService:
             total=total,
             page=page,
             size=size,
-            items=[NewsResponse.from_orm(item) for item in items],
+            items=[self._to_response(item) for item in items],
         )
     
     def update_news(
@@ -221,12 +237,11 @@ class NewsService:
         media_list: Optional[List[dict]] = None,
     ) -> NewsResponse:
         """Update a news segment (admin only)"""
-        news = self.db.query(News).filter(News.id == news_id).first()
+        news = self._news_query().filter(News.id == news_id).first()
         if not news:
             raise HTTPException(status_code=404, detail="News not found")
         
-        if news.admin_id != admin_id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this news")
+        self._assert_can_manage(admin_id)
         
         if title is not None:
             news.title = title
@@ -257,7 +272,7 @@ class NewsService:
         self.db.commit()
         self.db.refresh(news)
         
-        return NewsResponse.from_orm(news)
+        return self._to_response(news)
     
     def delete_news(self, news_id: str, admin_id: str) -> MessageResponse:
         """Delete a news segment (admin only)"""
@@ -265,8 +280,7 @@ class NewsService:
         if not news:
             raise HTTPException(status_code=404, detail="News not found")
         
-        if news.admin_id != admin_id:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this news")
+        self._assert_can_manage(admin_id)
         
         self.db.delete(news)
         self.db.commit()
@@ -275,31 +289,29 @@ class NewsService:
     
     def publish_news(self, news_id: str, admin_id: str) -> NewsResponse:
         """Publish a news segment (admin only)"""
-        news = self.db.query(News).filter(News.id == news_id).first()
+        news = self._news_query().filter(News.id == news_id).first()
         if not news:
             raise HTTPException(status_code=404, detail="News not found")
         
-        if news.admin_id != admin_id:
-            raise HTTPException(status_code=403, detail="Not authorized to publish this news")
+        self._assert_can_manage(admin_id)
         
         news.is_published = True
         news.published_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(news)
         
-        return NewsResponse.from_orm(news)
+        return self._to_response(news)
     
     def unpublish_news(self, news_id: str, admin_id: str) -> NewsResponse:
         """Unpublish a news segment (admin only)"""
-        news = self.db.query(News).filter(News.id == news_id).first()
+        news = self._news_query().filter(News.id == news_id).first()
         if not news:
             raise HTTPException(status_code=404, detail="News not found")
         
-        if news.admin_id != admin_id:
-            raise HTTPException(status_code=403, detail="Not authorized to unpublish this news")
+        self._assert_can_manage(admin_id)
         
         news.is_published = False
         self.db.commit()
         self.db.refresh(news)
         
-        return NewsResponse.from_orm(news)
+        return self._to_response(news)

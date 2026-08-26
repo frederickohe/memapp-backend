@@ -5,7 +5,7 @@ import secrets
 import string
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, or_
 from fastapi import HTTPException, status
 from core.forms.model.Form import Form, FormResponse, FormAssignmentType
 from core.user.model.User import User
@@ -264,6 +264,14 @@ class FormService:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
+        existing = (
+            self.db.query(FormResponse)
+            .filter(FormResponse.form_id == form_id, FormResponse.user_id == user_id)
+            .first()
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail="You have already submitted this survey")
+
         # Validate data against form fields (basic validation)
         self._validate_form_response(form, data)
         
@@ -425,6 +433,67 @@ class FormService:
             ))
         
         return PagedFormResponse(total=total, page=page, size=size, items=items)
+
+    def get_available_surveys(
+        self,
+        user_id: str,
+        page: int = 1,
+        size: int = 20,
+    ) -> PagedFormResponse:
+        """Public surveys plus forms assigned to this member."""
+        query = (
+            self.db.query(Form)
+            .filter(
+                Form.is_active == True,
+                or_(
+                    Form.assignment_type == FormAssignmentType.PUBLIC,
+                    and_(
+                        Form.assignment_type == FormAssignmentType.USER,
+                        Form.assigned_user_id == user_id,
+                    ),
+                ),
+            )
+            .order_by(desc(Form.created_at))
+        )
+        total = query.count()
+        forms = query.offset((page - 1) * size).limit(size).all()
+        form_ids = [form.id for form in forms]
+        submitted_ids = set()
+        if form_ids:
+            submitted_ids = {
+                row[0]
+                for row in self.db.query(FormResponse.form_id)
+                .filter(
+                    FormResponse.user_id == user_id,
+                    FormResponse.form_id.in_(form_ids),
+                )
+                .all()
+            }
+        items = []
+        for form in forms:
+            response_count = (
+                self.db.query(FormResponse)
+                .filter(FormResponse.form_id == form.id)
+                .count()
+            )
+            items.append(
+                FormDetailResponse(
+                    id=form.id,
+                    admin_id=form.admin_id,
+                    title=form.title,
+                    description=form.description,
+                    assignment_type=form.assignment_type,
+                    program_id=form.program_id,
+                    assigned_user_id=form.assigned_user_id,
+                    fields=self._convert_fields_to_response_list(form.fields),
+                    is_active=form.is_active,
+                    response_count=response_count,
+                    submitted=form.id in submitted_ids,
+                    created_at=form.created_at,
+                    updated_at=form.updated_at,
+                )
+            )
+        return PagedFormResponse(total=total, page=page, size=size, items=items)
     
     def get_form_analytics(self, form_id: str, admin_id: str) -> FormAnalyticsResponse:
         """Compute analytics for a form (admin only)"""
@@ -582,14 +651,17 @@ class FormService:
     
     def _convert_fields_to_response_list(self, fields_dict: Dict[str, Any]) -> List[FormFieldResponse]:
         """Convert fields dict to response list"""
+        if not fields_dict:
+            return []
         fields_list = []
-        # Sort by order if available
         sorted_fields = sorted(
             fields_dict.items(),
-            key=lambda x: x[1].get("order", 0)
+            key=lambda x: x[1].get("order", 0) if isinstance(x[1], dict) else 0
         )
         
         for field_name, field_info in sorted_fields:
+            if not isinstance(field_info, dict):
+                continue
             fields_list.append(FormFieldResponse(
                 name=field_info.get("name", field_name),
                 label=field_info.get("label", ""),

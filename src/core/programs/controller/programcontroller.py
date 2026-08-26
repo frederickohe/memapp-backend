@@ -75,6 +75,34 @@ async def create_program(
     return program
 
 
+@program_routes.get("/public/browse", response_model=PagedProgramResponse)
+async def list_public_programs(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    category: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get all published programs (no authentication required)"""
+    service = ProgramService(db)
+    return service.get_public_programs(page=page, size=size, category=category)
+
+
+@program_routes.get("/my-programs", response_model=UserProgramsResponse)
+async def get_my_programs(
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all programs the current user is enrolled in"""
+    service = ProgramService(db)
+    return service.get_user_programs(
+        user_id=current_user.id,
+        page=page,
+        size=size
+    )
+
+
 @program_routes.get("/{program_id}", response_model=ProgramDetailResponse)
 async def get_program(
     program_id: str,
@@ -172,6 +200,9 @@ async def enroll_in_program(
     db: Session = Depends(get_db)
 ):
     """Enroll in a program by submitting a form"""
+    if not request.user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
     service = ProgramService(db)
     
     response = service.enroll_user(
@@ -261,33 +292,5 @@ async def update_enrollment(
     )
 
 
-# ===================== PUBLIC PROGRAM ENDPOINTS =====================
-
-@program_routes.get("/public/browse", response_model=PagedProgramResponse)
-async def list_public_programs(
-    page: int = Query(1, ge=1),
-    size: int = Query(10, ge=1, le=100),
-    category: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """Get all published programs (no authentication required)"""
-    service = ProgramService(db)
-    return service.get_public_programs(page=page, size=size, category=category)
-
-
-# ===================== USER PROGRAM ENDPOINTS =====================
-
-@program_routes.get("/my-programs", response_model=UserProgramsResponse)
-async def get_my_programs(
-    page: int = Query(1, ge=1),
-    size: int = Query(10, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get all programs the current user is enrolled in"""
-    service = ProgramService(db)
-    return service.get_user_programs(
-        user_id=current_user.id,
-        page=page,
-        size=size
-    )
+# ===================== PUBLIC / USER PROGRAM ENDPOINTS =====================
+# Static paths are registered above /{program_id} so they are not captured as IDs.

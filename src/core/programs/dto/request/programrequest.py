@@ -47,9 +47,9 @@ class ProgramUpdateRequest(BaseModel):
 
 class ProgramEnrollmentRequest(BaseModel):
     """Request model for enrolling a user in a program"""
-    user_id: str
-    form_id: str  # ID of the form to submit for enrollment
-    form_data: Dict[str, Any]  # The form submission data
+    user_id: Optional[str] = None
+    form_id: Optional[str] = None
+    form_data: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None
     
     class Config:

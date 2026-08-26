@@ -27,6 +27,7 @@ from core.payments.controller.payment_controller import payment_member_routes, p
 from core.paystack.controller.paystack_controller import paystack_routes
 from core.moolre.controller.moolre_controller import moolre_routes
 from core.branches.controller.branch_controller import branch_routes
+from core.social.controller.socialcontroller import social_routes
 from core.rbac.service.permission_service import PermissionService
 
 from utilities.dbconfig import Base, engine, SessionLocal
@@ -117,6 +118,7 @@ app.include_router(news_routes, prefix="/api/v1/news", tags=["News Routes"])
 app.include_router(dashboard_routes, prefix="/api/v1/dashboard", tags=["Dashboard Routes"])
 app.include_router(form_routes, prefix="/api/v1/form", tags=["Forms Routes"])
 app.include_router(program_routes, prefix="/api/v1/program", tags=["Programs Routes"])
+app.include_router(social_routes, prefix="/api/v1/social", tags=["Y Social"])
 app.include_router(role_routes, prefix="/api/v1/admin", tags=["Admin RBAC"])
 app.include_router(admin_user_routes, prefix="/api/v1/admin", tags=["Admin Users"])
 app.include_router(member_user_routes, prefix="/api/v1/admin", tags=["Admin Members"])
