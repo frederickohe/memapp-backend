@@ -15,6 +15,38 @@ docker_compose() {
   fi
 }
 
+# The backend container runs as root with a bind mount on $REPO_DIR, so it
+# leaves root-owned __pycache__ (and sometimes package dirs) that block rsync.
+reset_bind_mount_ownership() {
+  local uid gid cmd
+  uid="$(id -u)"
+  gid="$(id -g)"
+  cmd="find /app -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true; chown -R ${uid}:${gid} /app"
+  echo "Resetting bind-mount ownership to ${uid}:${gid}"
+
+  if docker_compose exec -T backend sh -c "$cmd"; then
+    return 0
+  fi
+
+  if docker info >/dev/null 2>&1; then
+    docker run --rm -v "$REPO_DIR":/app alpine sh -c "$cmd"
+    return 0
+  fi
+
+  if command -v sudo >/dev/null && sudo -n docker info >/dev/null 2>&1; then
+    sudo docker run --rm -v "$REPO_DIR":/app alpine sh -c "$cmd"
+    return 0
+  fi
+
+  if command -v sudo >/dev/null && sudo -n true >/dev/null 2>&1; then
+    sudo find "$REPO_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+    sudo chown -R "${uid}:${gid}" "$REPO_DIR"
+    return 0
+  fi
+
+  echo "Could not reset bind-mount ownership; rsync may fail on root-owned files." >&2
+}
+
 install_from_archive() {
   local archive="$1"
   local tmpdir
@@ -22,7 +54,9 @@ install_from_archive() {
   tar -xzf "$archive" -C "$tmpdir"
 
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete \
+    # Do not preserve owner/group from the GitHub runner tarball — that
+    # causes chgrp "Operation not permitted" and aborts the release.
+    rsync -rltD --delete \
       --exclude '.env' \
       --exclude '.git/' \
       --exclude 'venv/' \
@@ -39,6 +73,8 @@ install_from_archive() {
 
 mkdir -p "$REPO_DIR"
 cd "$REPO_DIR"
+
+reset_bind_mount_ownership || true
 
 if [[ -n "$ARCHIVE" ]]; then
   if [[ ! -f "$ARCHIVE" ]]; then
