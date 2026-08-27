@@ -42,12 +42,12 @@ _TYPE_PREFIX = {
 }
 
 _METHOD_COLORS = {
-    "card": "#8b5cf6",
-    "momo_link": "#ffc107",
-    "momo_ussd": "#ffc107",
-    "mtn_momo": "#ffc107",
-    "vodafone": "#ef4444",
-    "airteltigo": "#3b82f6",
+    "card": "#111111",
+    "momo_link": "#ed1c24",
+    "momo_ussd": "#c81018",
+    "mtn_momo": "#ed1c24",
+    "vodafone": "#111111",
+    "airteltigo": "#6b7280",
 }
 
 
