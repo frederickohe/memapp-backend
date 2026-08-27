@@ -59,7 +59,7 @@ class User(Base):
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date)
     gender: Mapped[Optional[str]] = mapped_column(String, default=None)
     address: Mapped[Optional[str]] = mapped_column(String(300))
-    profile_picture_url: Mapped[Optional[str]] = mapped_column(String(200))
+    profile_picture_url: Mapped[Optional[str]] = mapped_column(String(500))
     
     # Membership Information
     membership_type: Mapped[Optional[str]] = mapped_column(String, default=None)

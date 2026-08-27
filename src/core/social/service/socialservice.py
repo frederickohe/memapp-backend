@@ -38,6 +38,19 @@ YMCA_AUTHOR = SocialAuthor(
     branch="National",
 )
 
+YMCA_PROFILE = SocialProfile(
+    id="ymca",
+    name="YMCA Ghana",
+    handle="ymcaghana",
+    avatar=None,
+    branch="National",
+    occupation="Ghana National Council",
+    skills=[],
+    points=0,
+    post_count=0,
+    is_self=False,
+)
+
 PLACEHOLDER_IMAGE = (
     "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=80"
 )
@@ -329,12 +342,16 @@ class SocialService:
         )
 
     def get_profile(self, user_id: str, current_user_id: str) -> SocialProfile:
+        if user_id == "ymca":
+            return YMCA_PROFILE
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return self._to_profile(user, current_user_id)
 
     def get_user_posts(self, user_id: str, current_user_id: str, page: int, size: int) -> PagedSocialFeed:
+        if user_id == "ymca":
+            return PagedSocialFeed(total=0, page=page, size=size, items=[])
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")

@@ -225,9 +225,14 @@ class UserService:
             logger.debug(f"Updating user {email} with data: {payload.dict(exclude_unset=True)}")
             user = self.db.query(User).filter(User.email == email).first()
             if not user:
+                user = self.db.query(User).filter(User.email.ilike(email)).first()
+            if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
             data = payload.dict(exclude_unset=True)
+            data.pop("member_id", None)
+            if data.get("whatsapp_number"):
+                data["whatsapp_number"] = str(data["whatsapp_number"])[:20]
             for key, value in data.items():
                 if hasattr(user, key):
                     setattr(user, key, value)
