@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
     member_id: Optional[str] = None
+    volunteer_points: int = 0
     month_dues_paid_status: Optional[str] = None
     year_affiliation_paid_status: Optional[str] = None
     

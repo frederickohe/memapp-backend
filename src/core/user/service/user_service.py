@@ -66,6 +66,7 @@ class UserService:
             membership_type=user.membership_type,
             current_branch=user.current_branch,
             member_id=user.member_id,
+            volunteer_points=user.volunteer_points or 0,
             month_dues_paid_status=user.month_dues_paid_status,
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             
@@ -110,6 +111,7 @@ class UserService:
             membership_type=user.membership_type,
             current_branch=user.current_branch,
             member_id=user.member_id,
+            volunteer_points=user.volunteer_points or 0,
             month_dues_paid_status=user.month_dues_paid_status,
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             
@@ -155,6 +157,7 @@ class UserService:
             membership_type=user.membership_type,
             current_branch=user.current_branch,
             member_id=user.member_id,
+            volunteer_points=user.volunteer_points or 0,
             month_dues_paid_status=user.month_dues_paid_status,
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             

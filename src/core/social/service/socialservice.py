@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 import string
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import HTTPException
 from sqlalchemy import desc, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, subqueryload
 
 from core.news.model.News import News
@@ -17,9 +18,14 @@ from core.social.dto.social_dto import (
     SocialLikeResponse,
     SocialPostResponse,
     SocialProfile,
+    SocialViewResponse,
 )
-from core.social.model.social import SocialLike, SocialPost, SocialPostKind
+from core.social.model.social import SocialLike, SocialPost, SocialPostKind, SocialView
 from core.user.model.User import User, UserStatus, UserType
+
+
+TARGET_TYPES = ("POST", "NEWS", "PROGRAM")
+
 
 def _aware(dt: Optional[datetime]) -> datetime:
     if dt is None:
@@ -83,36 +89,79 @@ class SocialService:
     def _id(self, prefix: str) -> str:
         return prefix + "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
 
-    def _like_counts(self, target_type: str, target_ids: List[str]) -> dict:
+    def _parse_target(self, item_id: str) -> Tuple[str, str]:
+        if ":" not in item_id:
+            raise HTTPException(status_code=400, detail="Invalid item id")
+        target_type, target_id = item_id.split(":", 1)
+        target_type = target_type.upper()
+        if target_type not in TARGET_TYPES or not target_id:
+            raise HTTPException(status_code=400, detail="Invalid item type")
+        return target_type, target_id
+
+    def _engagement_counts(self, model, target_type: str, target_ids: List[str]) -> dict:
         if not target_ids:
             return {}
         rows = (
-            self.db.query(SocialLike.target_id, func.count(SocialLike.id))
-            .filter(SocialLike.target_type == target_type, SocialLike.target_id.in_(target_ids))
-            .group_by(SocialLike.target_id)
+            self.db.query(model.target_id, func.count(model.id))
+            .filter(model.target_type == target_type, model.target_id.in_(target_ids))
+            .group_by(model.target_id)
             .all()
         )
-        return {row[0]: row[1] for row in rows}
+        return {row[0]: int(row[1] or 0) for row in rows}
 
-    def _liked_set(self, user_id: Optional[str], target_type: str, target_ids: List[str]) -> set:
+    def _engagement_set(self, model, user_id: Optional[str], target_type: str, target_ids: List[str]) -> set:
         if not user_id or not target_ids:
             return set()
         rows = (
-            self.db.query(SocialLike.target_id)
+            self.db.query(model.target_id)
             .filter(
-                SocialLike.user_id == user_id,
-                SocialLike.target_type == target_type,
-                SocialLike.target_id.in_(target_ids),
+                model.user_id == user_id,
+                model.target_type == target_type,
+                model.target_id.in_(target_ids),
             )
             .all()
         )
         return {row[0] for row in rows}
+
+    def _engagement(self, user_id: Optional[str], target_type: str, target_ids: List[str]) -> dict:
+        return {
+            "likes": self._engagement_counts(SocialLike, target_type, target_ids),
+            "liked": self._engagement_set(SocialLike, user_id, target_type, target_ids),
+            "views": self._engagement_counts(SocialView, target_type, target_ids),
+            "viewed": self._engagement_set(SocialView, user_id, target_type, target_ids),
+        }
+
+    def _count(self, model, target_type: str, target_id: str) -> int:
+        value = (
+            self.db.query(func.count(model.id))
+            .filter(model.target_type == target_type, model.target_id == target_id)
+            .scalar()
+        )
+        return int(value or 0)
 
     def _news_image(self, news: News) -> str:
         media = sorted(news.media or [], key=lambda item: item.order or 0)
         if media and media[0].url:
             return media[0].url
         return PLACEHOLDER_IMAGE
+
+    def _post_item(self, post: SocialPost, author: SocialAuthor, engagement: dict) -> SocialFeedItem:
+        return SocialFeedItem(
+            id=f"POST:{post.id}",
+            item_type="POST",
+            source_id=post.id,
+            title=None,
+            caption=post.caption or "",
+            media_url=post.media_url,
+            category="Impact" if post.kind == SocialPostKind.IMPACT else "Story",
+            kind=post.kind,
+            author=author,
+            likes=engagement["likes"].get(post.id, 0),
+            liked=post.id in engagement["liked"],
+            views=engagement["views"].get(post.id, 0),
+            viewed=post.id in engagement["viewed"],
+            created_at=post.created_at,
+        )
 
     def create_post(self, user: User, caption: Optional[str], media_url: str, kind: str) -> SocialPostResponse:
         kind_value = (kind or SocialPostKind.IMPACT).upper()
@@ -160,34 +209,16 @@ class SocialService:
         post_ids = [p.id for p in posts]
         news_ids = [n.id for n in news_items]
         program_ids = [p.id for p in programs]
-        post_likes = self._like_counts("POST", post_ids)
-        news_likes = self._like_counts("NEWS", news_ids)
-        program_likes = self._like_counts("PROGRAM", program_ids)
-        liked_posts = self._liked_set(user_id, "POST", post_ids)
-        liked_news = self._liked_set(user_id, "NEWS", news_ids)
-        liked_programs = self._liked_set(user_id, "PROGRAM", program_ids)
+        post_e = self._engagement(user_id, "POST", post_ids)
+        news_e = self._engagement(user_id, "NEWS", news_ids)
+        program_e = self._engagement(user_id, "PROGRAM", program_ids)
 
         items: List[SocialFeedItem] = []
         for post in posts:
             author = to_author(post.author) if post.author else SocialAuthor(
                 id=post.user_id, name="Member", handle="member"
             )
-            items.append(
-                SocialFeedItem(
-                    id=f"POST:{post.id}",
-                    item_type="POST",
-                    source_id=post.id,
-                    title=None,
-                    caption=post.caption or "",
-                    media_url=post.media_url,
-                    category="Impact" if post.kind == SocialPostKind.IMPACT else "Story",
-                    kind=post.kind,
-                    author=author,
-                    likes=post_likes.get(post.id, 0),
-                    liked=post.id in liked_posts,
-                    created_at=post.created_at,
-                )
-            )
+            items.append(self._post_item(post, author, post_e))
 
         for news in news_items:
             category = "Projects" if news.is_impact_story else (
@@ -204,8 +235,10 @@ class SocialService:
                     category=category,
                     kind=None,
                     author=YMCA_AUTHOR,
-                    likes=news_likes.get(news.id, 0),
-                    liked=news.id in liked_news,
+                    likes=news_e["likes"].get(news.id, 0),
+                    liked=news.id in news_e["liked"],
+                    views=news_e["views"].get(news.id, 0),
+                    viewed=news.id in news_e["viewed"],
                     created_at=news.published_at or news.created_at,
                 )
             )
@@ -222,8 +255,10 @@ class SocialService:
                     category=program.category or "Programs",
                     kind=None,
                     author=YMCA_AUTHOR,
-                    likes=program_likes.get(program.id, 0),
-                    liked=program.id in liked_programs,
+                    likes=program_e["likes"].get(program.id, 0),
+                    liked=program.id in program_e["liked"],
+                    views=program_e["views"].get(program.id, 0),
+                    viewed=program.id in program_e["viewed"],
                     created_at=program.created_at,
                 )
             )
@@ -251,38 +286,17 @@ class SocialService:
             seen.add(post.user_id)
             unique.append(post)
 
-        ids = [p.id for p in unique]
-        likes = self._like_counts("POST", ids)
-        liked = self._liked_set(user_id, "POST", ids)
+        engagement = self._engagement(user_id, "POST", [p.id for p in unique])
         items = []
         for post in unique:
             author = to_author(post.author) if post.author else SocialAuthor(
                 id=post.user_id, name="Member", handle="member"
             )
-            items.append(
-                SocialFeedItem(
-                    id=f"POST:{post.id}",
-                    item_type="POST",
-                    source_id=post.id,
-                    caption=post.caption or "",
-                    media_url=post.media_url,
-                    category="Story",
-                    kind=post.kind,
-                    author=author,
-                    likes=likes.get(post.id, 0),
-                    liked=post.id in liked,
-                    created_at=post.created_at,
-                )
-            )
+            items.append(self._post_item(post, author, engagement))
         return items
 
     def toggle_like(self, user: User, item_id: str) -> SocialLikeResponse:
-        if ":" not in item_id:
-            raise HTTPException(status_code=400, detail="Invalid item id")
-        target_type, target_id = item_id.split(":", 1)
-        target_type = target_type.upper()
-        if target_type not in ("POST", "NEWS", "PROGRAM"):
-            raise HTTPException(status_code=400, detail="Invalid item type")
+        target_type, target_id = self._parse_target(item_id)
 
         existing = (
             self.db.query(SocialLike)
@@ -309,12 +323,46 @@ class SocialService:
             self.db.commit()
             liked = True
 
-        count = (
-            self.db.query(func.count(SocialLike.id))
-            .filter(SocialLike.target_type == target_type, SocialLike.target_id == target_id)
-            .scalar()
+        return SocialLikeResponse(liked=liked, likes=self._count(SocialLike, target_type, target_id))
+
+    def record_view(self, user: User, item_id: str) -> SocialViewResponse:
+        target_type, target_id = self._parse_target(item_id)
+
+        if target_type == "POST":
+            post = self.db.query(SocialPost).filter(SocialPost.id == target_id).first()
+            if post and post.user_id == user.id:
+                return SocialViewResponse(
+                    viewed=False,
+                    views=self._count(SocialView, target_type, target_id),
+                )
+
+        existing = (
+            self.db.query(SocialView)
+            .filter(
+                SocialView.user_id == user.id,
+                SocialView.target_type == target_type,
+                SocialView.target_id == target_id,
+            )
+            .first()
         )
-        return SocialLikeResponse(liked=liked, likes=int(count or 0))
+        if not existing:
+            try:
+                self.db.add(
+                    SocialView(
+                        id=self._id("VIEW_"),
+                        user_id=user.id,
+                        target_type=target_type,
+                        target_id=target_id,
+                    )
+                )
+                self.db.commit()
+            except IntegrityError:
+                self.db.rollback()
+
+        return SocialViewResponse(
+            viewed=True,
+            views=self._count(SocialView, target_type, target_id),
+        )
 
     def search_users(self, query: str, page: int, size: int, current_user_id: str) -> PagedSocialProfiles:
         q = self.db.query(User).filter(
@@ -358,26 +406,9 @@ class SocialService:
         query = self.db.query(SocialPost).filter(SocialPost.user_id == user_id).order_by(desc(SocialPost.created_at))
         total = query.count()
         posts = query.offset((page - 1) * size).limit(size).all()
-        ids = [p.id for p in posts]
-        likes = self._like_counts("POST", ids)
-        liked = self._liked_set(current_user_id, "POST", ids)
+        engagement = self._engagement(current_user_id, "POST", [p.id for p in posts])
         author = to_author(user)
-        items = [
-            SocialFeedItem(
-                id=f"POST:{post.id}",
-                item_type="POST",
-                source_id=post.id,
-                caption=post.caption or "",
-                media_url=post.media_url,
-                category="Impact" if post.kind == SocialPostKind.IMPACT else "Story",
-                kind=post.kind,
-                author=author,
-                likes=likes.get(post.id, 0),
-                liked=post.id in liked,
-                created_at=post.created_at,
-            )
-            for post in posts
-        ]
+        items = [self._post_item(post, author, engagement) for post in posts]
         return PagedSocialFeed(total=total, page=page, size=size, items=items)
 
     def _to_profile(self, user: User, current_user_id: str) -> SocialProfile:
@@ -403,8 +434,7 @@ class SocialService:
         )
 
     def _post_to_response(self, post: SocialPost, user_id: str) -> SocialPostResponse:
-        likes = self._like_counts("POST", [post.id]).get(post.id, 0)
-        liked = post.id in self._liked_set(user_id, "POST", [post.id])
+        engagement = self._engagement(user_id, "POST", [post.id])
         author = to_author(post.author) if post.author else SocialAuthor(
             id=post.user_id, name="Member", handle="member"
         )
@@ -415,8 +445,10 @@ class SocialService:
             media_url=post.media_url,
             media_type=post.media_type,
             kind=post.kind,
-            likes=likes,
-            liked=liked,
+            likes=engagement["likes"].get(post.id, 0),
+            liked=post.id in engagement["liked"],
+            views=engagement["views"].get(post.id, 0),
+            viewed=post.id in engagement["viewed"],
             created_at=post.created_at,
             author=author,
         )

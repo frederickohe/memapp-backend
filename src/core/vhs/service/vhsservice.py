@@ -5,16 +5,66 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from core.branches.model.Branch import Branch
 from core.branches.service.scope_helper import resolve_scope
 from core.user.model.User import User, UserType
 from core.vhs.dto.request.vhs_requests import RejectVhsRequest, SubmitVolunteerHoursRequest
-from core.vhs.dto.response.vhs_responses import VhsSubmissionListResponse, VhsSubmissionResponse
+from core.vhs.dto.response.vhs_responses import (
+    VolunteerContributionResponse,
+    VolunteerImpactResponse,
+    VolunteerMilestoneResponse,
+    VhsSubmissionListResponse,
+    VhsSubmissionResponse,
+)
 from core.vhs.model.volunteer_hours_submission import VhsStatus, VolunteerHoursSubmission
 
 POINTS_PER_HOUR = 10
+
+VOLUNTEER_MILESTONES = [
+    {
+        "id": "first-step",
+        "name": "First Step",
+        "title": "Bronze Volunteer",
+        "hours_required": 10,
+        "image_key": "bronze",
+        "level": 1,
+    },
+    {
+        "id": "helper",
+        "name": "Helper",
+        "title": "Helper Volunteer",
+        "hours_required": 25,
+        "image_key": "platinum",
+        "level": 2,
+    },
+    {
+        "id": "champion",
+        "name": "Champion",
+        "title": "Gold Volunteer",
+        "hours_required": 50,
+        "image_key": "gold",
+        "level": 3,
+    },
+    {
+        "id": "leader",
+        "name": "Leader",
+        "title": "Leader Volunteer",
+        "hours_required": 100,
+        "image_key": None,
+        "level": 4,
+    },
+    {
+        "id": "legend",
+        "name": "Legend",
+        "title": "Legend Volunteer",
+        "hours_required": 250,
+        "image_key": None,
+        "level": 5,
+    },
+]
 
 
 class VhsService:
@@ -189,3 +239,130 @@ class VhsService:
         self.db.commit()
         self.db.refresh(submission)
         return self._to_response(submission)
+
+    def get_member_impact(self, user: User) -> VolunteerImpactResponse:
+        hours_volunteered = float(
+            self.db.query(func.coalesce(func.sum(VolunteerHoursSubmission.hours), 0.0))
+            .filter(
+                VolunteerHoursSubmission.user_id == user.id,
+                VolunteerHoursSubmission.status == VhsStatus.APPROVED,
+            )
+            .scalar()
+            or 0.0
+        )
+        events_attended = int(
+            self.db.query(func.count(VolunteerHoursSubmission.id))
+            .filter(
+                VolunteerHoursSubmission.user_id == user.id,
+                VolunteerHoursSubmission.status == VhsStatus.APPROVED,
+            )
+            .scalar()
+            or 0
+        )
+        volunteer_points = user.volunteer_points or 0
+        higher_ranked = int(
+            self.db.query(func.count(User.id))
+            .filter(
+                User.user_type == UserType.MEMBER,
+                User.volunteer_points > volunteer_points,
+            )
+            .scalar()
+            or 0
+        )
+        total_members = int(
+            self.db.query(func.count(User.id))
+            .filter(User.user_type == UserType.MEMBER)
+            .scalar()
+            or 0
+        )
+        community_rank = higher_ranked + 1 if total_members else 0
+
+        milestones: list[VolunteerMilestoneResponse] = []
+        previous_required = 0.0
+        current_milestone_id = None
+        rank_title = "Member"
+        next_rank_title = VOLUNTEER_MILESTONES[0]["name"] if VOLUNTEER_MILESTONES else None
+        next_rank_hours = VOLUNTEER_MILESTONES[0]["hours_required"] if VOLUNTEER_MILESTONES else None
+
+        for index, spec in enumerate(VOLUNTEER_MILESTONES):
+            required = float(spec["hours_required"])
+            next_spec = VOLUNTEER_MILESTONES[index + 1] if index + 1 < len(VOLUNTEER_MILESTONES) else None
+            if hours_volunteered >= required:
+                status = "completed"
+                current_milestone_id = spec["id"]
+                rank_title = spec["title"]
+                if next_spec:
+                    next_rank_title = next_spec["name"]
+                    next_rank_hours = float(next_spec["hours_required"])
+                else:
+                    next_rank_title = None
+                    next_rank_hours = required
+            elif hours_volunteered >= previous_required:
+                status = "in_progress"
+                if current_milestone_id is None:
+                    next_rank_title = spec["name"]
+                    next_rank_hours = required
+            else:
+                status = "locked"
+
+            hours_completed = min(hours_volunteered, required)
+            progress = 1.0 if required <= 0 else min(1.0, hours_volunteered / required)
+            milestones.append(
+                VolunteerMilestoneResponse(
+                    id=spec["id"],
+                    name=spec["name"],
+                    title=spec["title"],
+                    hours_required=required,
+                    image_key=spec.get("image_key"),
+                    level=spec["level"],
+                    status=status,
+                    hours_completed=hours_completed,
+                    progress=round(progress, 4),
+                    next_id=next_spec["id"] if next_spec else None,
+                    next_name=next_spec["name"] if next_spec else None,
+                    next_hours_required=float(next_spec["hours_required"]) if next_spec else None,
+                )
+            )
+            previous_required = required
+
+        if next_rank_hours and next_rank_hours > 0:
+            next_rank_progress = min(1.0, hours_volunteered / next_rank_hours)
+        else:
+            next_rank_progress = 1.0
+        points_to_next = max(0, round((next_rank_hours or 0) * POINTS_PER_HOUR) - volunteer_points)
+
+        submissions = (
+            self.db.query(VolunteerHoursSubmission)
+            .filter(VolunteerHoursSubmission.user_id == user.id)
+            .order_by(VolunteerHoursSubmission.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        recent_contributions = [
+            VolunteerContributionResponse(
+                id=item.id,
+                title=item.activity_name,
+                hours=item.hours,
+                points=item.points_awarded or self._points_for_hours(item.hours),
+                volunteer_date=item.volunteer_date,
+                status=item.status,
+                activity_description=item.activity_description,
+                branch=item.branch,
+            )
+            for item in submissions
+        ]
+
+        return VolunteerImpactResponse(
+            hours_volunteered=hours_volunteered,
+            volunteer_points=volunteer_points,
+            events_attended=events_attended,
+            community_rank=community_rank,
+            total_members=total_members,
+            rank_title=rank_title,
+            next_rank_title=next_rank_title,
+            next_rank_progress=round(next_rank_progress, 4),
+            points_to_next=points_to_next,
+            current_milestone_id=current_milestone_id,
+            milestones=milestones,
+            recent_contributions=recent_contributions,
+        )

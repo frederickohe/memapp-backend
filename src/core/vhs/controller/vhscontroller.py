@@ -7,7 +7,11 @@ from core.rbac.dependencies import require_permission
 from core.rbac.dto.response.api_envelope import ApiEnvelope
 from core.user.model.User import User
 from core.vhs.dto.request.vhs_requests import RejectVhsRequest, SubmitVolunteerHoursRequest
-from core.vhs.dto.response.vhs_responses import VhsSubmissionListResponse, VhsSubmissionResponse
+from core.vhs.dto.response.vhs_responses import (
+    VolunteerImpactResponse,
+    VhsSubmissionListResponse,
+    VhsSubmissionResponse,
+)
 from core.vhs.service.vhsservice import VhsService
 
 vhs_member_routes = APIRouter()
@@ -23,6 +27,16 @@ def submit_volunteer_hours(
     """Member submits volunteer hours for review and points."""
     service = VhsService(db)
     return ApiEnvelope(data=service.submit(user, request))
+
+
+@vhs_member_routes.get("/impact", response_model=ApiEnvelope[VolunteerImpactResponse])
+def get_volunteer_impact(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Member volunteer stats, milestones, and recent contributions."""
+    service = VhsService(db)
+    return ApiEnvelope(data=service.get_member_impact(user))
 
 
 @vhs_admin_routes.get("/vhs-submissions", response_model=ApiEnvelope[VhsSubmissionListResponse])

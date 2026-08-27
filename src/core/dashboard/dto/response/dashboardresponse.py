@@ -13,9 +13,26 @@ class ProminentProfileResponse(BaseModel):
     occupation: Optional[str] = None
     prominent_headline: Optional[str] = None
     volunteer_points: int = 0
+    bio: Optional[str] = None
+    country: Optional[str] = None
+    era: Optional[str] = None
+    category: Optional[str] = None
+    sort_order: int = 0
+    is_published: bool = True
 
     class Config:
         from_attributes = True
+
+
+class PagedProminentProfilesResponse(BaseModel):
+    total: int
+    page: int
+    size: int
+    items: List[ProminentProfileResponse]
+
+
+class ProminentProfileMessageResponse(BaseModel):
+    message: str
 
 
 class MemberDashboardResponse(BaseModel):

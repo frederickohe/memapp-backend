@@ -25,6 +25,8 @@ class SocialFeedItem(BaseModel):
     author: SocialAuthor
     likes: int = 0
     liked: bool = False
+    views: int = 0
+    viewed: bool = False
     created_at: datetime
 
 
@@ -50,6 +52,8 @@ class SocialPostResponse(BaseModel):
     kind: str
     likes: int = 0
     liked: bool = False
+    views: int = 0
+    viewed: bool = False
     created_at: datetime
     author: SocialAuthor
 
@@ -61,6 +65,15 @@ class SocialLikeRequest(BaseModel):
 class SocialLikeResponse(BaseModel):
     liked: bool
     likes: int
+
+
+class SocialViewRequest(BaseModel):
+    item_id: str
+
+
+class SocialViewResponse(BaseModel):
+    viewed: bool
+    views: int
 
 
 class SocialProfile(BaseModel):

@@ -4,6 +4,47 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
+class VolunteerMilestoneResponse(BaseModel):
+    id: str
+    name: str
+    title: str
+    hours_required: float
+    image_key: Optional[str] = None
+    level: int
+    status: str
+    hours_completed: float
+    progress: float
+    next_id: Optional[str] = None
+    next_name: Optional[str] = None
+    next_hours_required: Optional[float] = None
+
+
+class VolunteerContributionResponse(BaseModel):
+    id: str
+    title: str
+    hours: float
+    points: Optional[int] = None
+    volunteer_date: date
+    status: str
+    activity_description: Optional[str] = None
+    branch: Optional[str] = None
+
+
+class VolunteerImpactResponse(BaseModel):
+    hours_volunteered: float
+    volunteer_points: int
+    events_attended: int
+    community_rank: int
+    total_members: int
+    rank_title: str
+    next_rank_title: Optional[str] = None
+    next_rank_progress: float
+    points_to_next: int
+    current_milestone_id: Optional[str] = None
+    milestones: List[VolunteerMilestoneResponse]
+    recent_contributions: List[VolunteerContributionResponse]
+
+
 class VhsSubmissionResponse(BaseModel):
     id: str
     user_id: str

@@ -19,6 +19,7 @@ _model_modules = [
 	"core.auth.model.refreshtoken",
 	"core.auth.model.password_reset_token",
 	"core.news.model.News",
+	"core.dashboard.model.ProminentProfile",
 	"core.forms.model.Form",
 	"core.programs.model.program",
 	"core.social.model.social",

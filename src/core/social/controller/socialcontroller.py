@@ -13,6 +13,8 @@ from core.social.dto.social_dto import (
     SocialPostCreateRequest,
     SocialPostResponse,
     SocialProfile,
+    SocialViewRequest,
+    SocialViewResponse,
 )
 from core.social.service.socialservice import SocialService
 from core.user.model.User import User
@@ -59,6 +61,15 @@ def toggle_like(
     db: Session = Depends(get_db),
 ):
     return SocialService(db).toggle_like(current_user, request.item_id)
+
+
+@social_routes.post("/view", response_model=SocialViewResponse)
+def record_view(
+    request: SocialViewRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return SocialService(db).record_view(current_user, request.item_id)
 
 
 @social_routes.get("/users/search", response_model=PagedSocialProfiles)
