@@ -7,6 +7,7 @@ from core.auth.dependencies import get_current_user, get_db
 from core.payments.dto.request.payment_requests import ActivatePaymentRequest, InitiatePaymentRequest
 from core.payments.dto.response.payment_responses import (
     AdminPaymentListResponse,
+    DuesScheduleResponse,
     InitiatePaymentResponse,
     PaymentConfigResponse,
     PaymentOverviewResponse,
@@ -25,6 +26,15 @@ payment_admin_routes = APIRouter()
 @payment_member_routes.get("/config", response_model=ApiEnvelope[PaymentConfigResponse])
 def get_payment_config(db: Session = Depends(get_db)):
     return ApiEnvelope(data=PaymentService(db).get_config())
+
+
+@payment_member_routes.get("/schedule", response_model=ApiEnvelope[DuesScheduleResponse])
+def get_dues_schedule(
+    year: Optional[int] = Query(None, ge=2020, le=2100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return ApiEnvelope(data=PaymentService(db).get_schedule(user, year=year))
 
 
 @payment_member_routes.post("/initiate", response_model=ApiEnvelope[InitiatePaymentResponse])

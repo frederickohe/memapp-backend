@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, ForeignKey, JSON, Numeric, String
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -37,6 +37,8 @@ class Payment(Base):
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     amount_ghs: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    period_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    period_month: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="GHS")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=PaymentStatus.PENDING.value, index=True)
     gateway_response: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)

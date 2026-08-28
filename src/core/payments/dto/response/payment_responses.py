@@ -23,6 +23,9 @@ class PaymentResponse(BaseModel):
     amount_ghs: float
     currency: str
     status: str
+    period_year: Optional[int] = None
+    period_month: Optional[int] = None
+    period_label: Optional[str] = None
     receipt_number: Optional[str] = None
     paid_at: Optional[datetime] = None
     created_at: datetime
@@ -37,6 +40,9 @@ class InitiatePaymentResponse(BaseModel):
     provider: str
     method: str
     amount_ghs: float
+    period_year: int
+    period_month: int
+    period_label: str
     authorization_url: Optional[str] = None
     access_code: Optional[str] = None
     ussd_dial_code: Optional[str] = None
@@ -46,10 +52,41 @@ class InitiatePaymentResponse(BaseModel):
 class PaymentConfigResponse(BaseModel):
     monthly_dues_amount_ghs: float
     annual_affiliation_amount_ghs: float
+    annual_total_ghs: float
     currency: str
     default_provider: str
+    combined_monthly: bool
     paystack_enabled: bool
     moolre_enabled: bool
+
+
+class DuesMonthItem(BaseModel):
+    year: int
+    month: int
+    label: str
+    amount_ghs: float
+    status: str
+    can_pay: bool
+    is_current: bool
+    payment_id: Optional[str] = None
+    reference: Optional[str] = None
+    receipt_number: Optional[str] = None
+    paid_at: Optional[datetime] = None
+
+
+class DuesScheduleResponse(BaseModel):
+    year: int
+    currency: str
+    monthly_amount_ghs: float
+    annual_total_ghs: float
+    months_paid: int
+    months_applicable: int
+    months_outstanding: int
+    amount_paid_ghs: float
+    amount_outstanding_ghs: float
+    current_month_paid: bool
+    year_in_good_standing: bool
+    months: List[DuesMonthItem]
 
 
 class AdminPaymentItem(BaseModel):
@@ -61,6 +98,8 @@ class AdminPaymentItem(BaseModel):
     amount: float
     amount_ghs: float
     status: str
+    period_year: Optional[int] = None
+    period_month: Optional[int] = None
     created_at: datetime
 
 

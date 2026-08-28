@@ -51,14 +51,20 @@
     <tr>
       <td class="label">Payment Type</td>
       <td class="value">{{ payment_type_label }}</td>
-      <td class="label">Reference</td>
-      <td class="value">{{ reference }}</td>
+      <td class="label">Billing Period</td>
+      <td class="value">{{ period_label or '—' }}</td>
     </tr>
     <tr>
+      <td class="label">Reference</td>
+      <td class="value">{{ reference }}</td>
       <td class="label">Payment Method</td>
       <td class="value">{{ method_label }}</td>
+    </tr>
+    <tr>
       <td class="label">Status</td>
       <td class="value status-paid">PAID</td>
+      <td class="label"></td>
+      <td class="value"></td>
     </tr>
   </table>
 

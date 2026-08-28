@@ -10,7 +10,7 @@ from core.payments.model.Payment import Payment
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 _TYPE_LABELS = {
-    "monthly_dues": "Monthly Membership Dues",
+    "monthly_dues": "Monthly Membership (Dues & Affiliation)",
     "annual_affiliation": "Annual Affiliation Fee",
     "refund": "Refund",
 }
@@ -43,6 +43,11 @@ class ReceiptService:
             branch=user.current_branch,
             email=user.email,
             payment_type_label=_TYPE_LABELS.get(payment.payment_type, payment.payment_type),
+            period_label=(
+                f"{payment.period_month:02d}/{payment.period_year}"
+                if getattr(payment, "period_year", None) and getattr(payment, "period_month", None)
+                else None
+            ),
             reference=payment.reference,
             method_label=_METHOD_LABELS.get(payment.method or "", payment.method or "—"),
             currency=payment.currency,

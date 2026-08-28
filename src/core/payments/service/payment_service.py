@@ -1,3 +1,4 @@
+import calendar
 import logging
 import secrets
 import string
@@ -18,6 +19,8 @@ from core.payments.dto.request.payment_requests import InitiatePaymentRequest
 from core.payments.dto.response.payment_responses import (
     AdminPaymentItem,
     AdminPaymentListResponse,
+    DuesMonthItem,
+    DuesScheduleResponse,
     InitiatePaymentResponse,
     PaymentConfigResponse,
     PaymentCustomerSummary,
@@ -57,20 +60,32 @@ class PaymentService:
         self.receipt_service = ReceiptService()
 
     def get_config(self) -> PaymentConfigResponse:
+        monthly = settings.MONTHLY_DUES_AMOUNT_GHS
         return PaymentConfigResponse(
-            monthly_dues_amount_ghs=settings.MONTHLY_DUES_AMOUNT_GHS,
+            monthly_dues_amount_ghs=monthly,
             annual_affiliation_amount_ghs=settings.ANNUAL_AFFILIATION_AMOUNT_GHS,
+            annual_total_ghs=settings.ANNUAL_MEMBERSHIP_AMOUNT_GHS,
             currency=settings.DEFAULT_CURRENCY,
-            default_provider=settings.PAYMENT_PROVIDER,
+            default_provider=PaymentProvider.PAYSTACK.value,
+            combined_monthly=True,
             paystack_enabled=bool(settings.PAYSTACK_SECRET_KEY and settings.PAYSTACK_PUBLIC_KEY),
             moolre_enabled=bool(settings.MOOLRE_ACCOUNT_NUMBER),
         )
 
+    @staticmethod
+    def _now() -> datetime:
+        return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _period_label(year: int, month: int) -> str:
+        return f"{calendar.month_name[month]} {year}"
+
     def _amount_for_type(self, payment_type: str) -> float:
-        if payment_type == PaymentType.MONTHLY_DUES.value:
+        if payment_type in (
+            PaymentType.MONTHLY_DUES.value,
+            PaymentType.ANNUAL_AFFILIATION.value,
+        ):
             return settings.MONTHLY_DUES_AMOUNT_GHS
-        if payment_type == PaymentType.ANNUAL_AFFILIATION.value:
-            return settings.ANNUAL_AFFILIATION_AMOUNT_GHS
         raise HTTPException(status_code=400, detail="Invalid payment type")
 
     def generate_reference(self, payment_type: str) -> str:
@@ -89,35 +104,98 @@ class PaymentService:
         )
         return f"YMC-RCP-{year}-{count + 1:05d}"
 
+    def _resolve_period(self, user: User, year: Optional[int], month: Optional[int]) -> tuple[int, int]:
+        now = self._now()
+        period_year = year or now.year
+        period_month = month or now.month
+        if user.created_at:
+            joined = user.created_at
+            if joined.tzinfo is None:
+                joined = joined.replace(tzinfo=timezone.utc)
+            join_year, join_month = joined.year, joined.month
+            if (period_year, period_month) < (join_year, join_month):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot pay dues for a month before your membership started",
+                )
+        return period_year, period_month
+
+    def _successful_period_payment(self, user_id: str, year: int, month: int) -> Optional[Payment]:
+        return (
+            self.db.query(Payment)
+            .filter(
+                Payment.user_id == user_id,
+                Payment.period_year == year,
+                Payment.period_month == month,
+                Payment.payment_type == PaymentType.MONTHLY_DUES.value,
+                Payment.status == PaymentStatus.SUCCESS.value,
+            )
+            .first()
+        )
+
+    def _pending_period_payment(self, user_id: str, year: int, month: int) -> Optional[Payment]:
+        return (
+            self.db.query(Payment)
+            .filter(
+                Payment.user_id == user_id,
+                Payment.period_year == year,
+                Payment.period_month == month,
+                Payment.payment_type == PaymentType.MONTHLY_DUES.value,
+                Payment.status == PaymentStatus.PENDING.value,
+            )
+            .order_by(Payment.created_at.desc())
+            .first()
+        )
+
     async def initiate(self, user: User, request: InitiatePaymentRequest) -> InitiatePaymentResponse:
         amount_ghs = self._amount_for_type(request.payment_type)
-        provider = request.provider or settings.PAYMENT_PROVIDER
-        reference = self.generate_reference(request.payment_type)
-
-        payment = Payment(
-            id=generate_id(),
-            user_id=user.id,
-            reference=reference,
-            payment_type=request.payment_type,
-            provider=provider,
-            method=request.method,
-            amount_ghs=amount_ghs,
-            currency=settings.DEFAULT_CURRENCY,
-            status=PaymentStatus.PENDING.value,
-            payment_metadata={
-                "period_year": datetime.now(timezone.utc).year,
-                "period_month": datetime.now(timezone.utc).month,
-                "branch": user.current_branch,
-            },
+        period_year, period_month = self._resolve_period(
+            user, request.period_year, request.period_month
         )
-        self.db.add(payment)
+
+        existing_success = self._successful_period_payment(user.id, period_year, period_month)
+        if existing_success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{self._period_label(period_year, period_month)} is already paid",
+            )
+
+        payment = self._pending_period_payment(user.id, period_year, period_month)
+        if payment:
+            payment.amount_ghs = amount_ghs
+            payment.provider = PaymentProvider.PAYSTACK.value
+            payment.method = request.method or "card"
+            payment.payment_metadata = {
+                **(payment.payment_metadata or {}),
+                "period_year": period_year,
+                "period_month": period_month,
+                "branch": user.current_branch,
+                "covers": ["monthly_dues", "annual_affiliation"],
+            }
+        else:
+            payment = Payment(
+                id=generate_id(),
+                user_id=user.id,
+                reference=self.generate_reference(PaymentType.MONTHLY_DUES.value),
+                payment_type=PaymentType.MONTHLY_DUES.value,
+                provider=PaymentProvider.PAYSTACK.value,
+                method=request.method or "card",
+                amount_ghs=amount_ghs,
+                period_year=period_year,
+                period_month=period_month,
+                currency=settings.DEFAULT_CURRENCY,
+                status=PaymentStatus.PENDING.value,
+                payment_metadata={
+                    "period_year": period_year,
+                    "period_month": period_month,
+                    "branch": user.current_branch,
+                    "covers": ["monthly_dues", "annual_affiliation"],
+                },
+            )
+            self.db.add(payment)
         self.db.commit()
 
-        if provider == PaymentProvider.PAYSTACK.value:
-            return await self._initiate_paystack(user, payment, request)
-        if provider == PaymentProvider.MOOLRE.value:
-            return self._initiate_moolre(user, payment, request)
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+        return await self._initiate_paystack(user, payment, request)
 
     async def _initiate_paystack(
         self, user: User, payment: Payment, request: InitiatePaymentRequest
@@ -133,6 +211,8 @@ class PaymentService:
                 "payment_id": payment.id,
                 "payment_type": payment.payment_type,
                 "user_id": user.id,
+                "period_year": payment.period_year,
+                "period_month": payment.period_month,
             },
             channels=["card", "mobile_money", "bank"],
         )
@@ -143,6 +223,9 @@ class PaymentService:
             provider=PaymentProvider.PAYSTACK.value,
             method="card",
             amount_ghs=float(payment.amount_ghs),
+            period_year=payment.period_year,
+            period_month=payment.period_month,
+            period_label=self._period_label(payment.period_year, payment.period_month),
             authorization_url=result.authorization_url,
             access_code=result.access_code,
         )
@@ -180,6 +263,9 @@ class PaymentService:
                 provider=PaymentProvider.MOOLRE.value,
                 method="momo_ussd",
                 amount_ghs=float(payment.amount_ghs),
+                period_year=payment.period_year,
+                period_month=payment.period_month,
+                period_label=self._period_label(payment.period_year, payment.period_month),
                 ussd_dial_code=dial_code or None,
                 message="Approve the payment prompt on your phone.",
             )
@@ -200,6 +286,9 @@ class PaymentService:
             provider=PaymentProvider.MOOLRE.value,
             method=payment.method,
             amount_ghs=float(payment.amount_ghs),
+            period_year=payment.period_year,
+            period_month=payment.period_month,
+            period_label=self._period_label(payment.period_year, payment.period_month),
             authorization_url=result.get("authorization_url"),
         )
 
@@ -299,10 +388,8 @@ class PaymentService:
 
         user = self.db.query(User).filter(User.id == payment.user_id).first()
         if user:
-            if payment.payment_type == PaymentType.MONTHLY_DUES.value:
-                user.month_dues_paid_status = "YES"
-            elif payment.payment_type == PaymentType.ANNUAL_AFFILIATION.value:
-                user.year_affiliation_paid_status = "YES"
+            self.db.flush()
+            self._sync_member_flags(user)
 
         self.db.commit()
 
@@ -385,6 +472,8 @@ class PaymentService:
                     amount=float(payment.amount_ghs),
                     amount_ghs=float(payment.amount_ghs),
                     status=payment.status,
+                    period_year=payment.period_year,
+                    period_month=payment.period_month,
                     created_at=payment.created_at,
                 )
             )
@@ -516,6 +605,115 @@ class PaymentService:
     def get_by_reference(self, reference: str) -> Payment:
         return self._get_payment_by_reference(reference)
 
+    def _join_period(self, user: User) -> tuple[int, int]:
+        if not user.created_at:
+            return 1970, 1
+        joined = user.created_at
+        if joined.tzinfo is None:
+            joined = joined.replace(tzinfo=timezone.utc)
+        return joined.year, joined.month
+
+    def _sync_member_flags(self, user: User) -> None:
+        now = self._now()
+        current_paid = self._successful_period_payment(user.id, now.year, now.month)
+        user.month_dues_paid_status = "YES" if current_paid else "NO"
+
+        join_year, join_month = self._join_period(user)
+        unpaid_through_current = False
+        for month in range(1, 13):
+            if (now.year, month) < (join_year, join_month):
+                continue
+            if (now.year, month) > (now.year, now.month):
+                break
+            if not self._successful_period_payment(user.id, now.year, month):
+                unpaid_through_current = True
+                break
+        user.year_affiliation_paid_status = "NO" if unpaid_through_current else "YES"
+
+    def get_schedule(self, user: User, year: Optional[int] = None) -> DuesScheduleResponse:
+        now = self._now()
+        year = year or now.year
+        monthly_amount = settings.MONTHLY_DUES_AMOUNT_GHS
+        join_year, join_month = self._join_period(user)
+
+        paid_rows = (
+            self.db.query(Payment)
+            .filter(
+                Payment.user_id == user.id,
+                Payment.period_year == year,
+                Payment.payment_type == PaymentType.MONTHLY_DUES.value,
+                Payment.status == PaymentStatus.SUCCESS.value,
+            )
+            .all()
+        )
+        paid_by_month = {row.period_month: row for row in paid_rows}
+
+        months: list[DuesMonthItem] = []
+        months_paid = 0
+        months_applicable = 0
+        months_outstanding = 0
+
+        for month in range(1, 13):
+            period = (year, month)
+            is_current = period == (now.year, now.month)
+            before_join = period < (join_year, join_month)
+            in_future = period > (now.year, now.month)
+            paid = paid_by_month.get(month)
+
+            if before_join:
+                status_value = "not_due"
+            elif paid:
+                status_value = "paid"
+                months_paid += 1
+                months_applicable += 1
+            elif in_future:
+                status_value = "upcoming"
+                months_applicable += 1
+            elif is_current:
+                status_value = "due"
+                months_applicable += 1
+                months_outstanding += 1
+            else:
+                status_value = "overdue"
+                months_applicable += 1
+                months_outstanding += 1
+
+            months.append(
+                DuesMonthItem(
+                    year=year,
+                    month=month,
+                    label=self._period_label(year, month),
+                    amount_ghs=monthly_amount,
+                    status=status_value,
+                    can_pay=status_value in ("due", "overdue", "upcoming"),
+                    is_current=is_current,
+                    payment_id=paid.id if paid else None,
+                    reference=paid.reference if paid else None,
+                    receipt_number=paid.receipt_number if paid else None,
+                    paid_at=paid.paid_at if paid else None,
+                )
+            )
+
+        current_month_paid = bool(
+            year == now.year and paid_by_month.get(now.month)
+        )
+        year_in_good_standing = months_outstanding == 0 and months_paid > 0
+
+        return DuesScheduleResponse(
+            year=year,
+            currency=settings.DEFAULT_CURRENCY,
+            monthly_amount_ghs=monthly_amount,
+            annual_total_ghs=settings.ANNUAL_MEMBERSHIP_AMOUNT_GHS,
+            months_paid=months_paid,
+            months_applicable=months_applicable,
+            months_outstanding=months_outstanding,
+            amount_paid_ghs=round(months_paid * monthly_amount, 2),
+            amount_outstanding_ghs=round(months_outstanding * monthly_amount, 2),
+            current_month_paid=current_month_paid,
+            year_in_good_standing=year_in_good_standing,
+            months=months,
+        )
+
     def _get_payment_by_reference(self, reference: str) -> Payment:
         payment = self.db.query(Payment).filter(Payment.reference == reference).first()
         if not payment:
@@ -524,6 +722,11 @@ class PaymentService:
 
     @staticmethod
     def _to_response(payment: Payment) -> PaymentResponse:
+        year = getattr(payment, "period_year", None)
+        month = getattr(payment, "period_month", None)
+        label = None
+        if year and month:
+            label = f"{calendar.month_name[month]} {year}"
         return PaymentResponse(
             id=payment.id,
             reference=payment.reference,
@@ -533,6 +736,9 @@ class PaymentService:
             amount_ghs=float(payment.amount_ghs),
             currency=payment.currency,
             status=payment.status,
+            period_year=year,
+            period_month=month,
+            period_label=label,
             receipt_number=payment.receipt_number,
             paid_at=payment.paid_at,
             created_at=payment.created_at,

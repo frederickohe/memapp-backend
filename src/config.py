@@ -61,8 +61,8 @@ class Settings(BaseSettings):
         os.environ.get('REQUIRE_USSD_HANDOFF', 'false').lower() == 'true'
     )
     MOOLRE_DEFAULT_CHANNEL: str = os.environ.get('MOOLRE_DEFAULT_CHANNEL', '13')
-    # Payment provider: moolre (default) or paystack (legacy)
-    PAYMENT_PROVIDER: str = os.environ.get('PAYMENT_PROVIDER', 'moolre')
+    # Membership payments go through Paystack (Moolre remains for SMS).
+    PAYMENT_PROVIDER: str = os.environ.get('PAYMENT_PROVIDER', 'paystack')
 
     @property
     def DB_DSN(self) -> URL:
@@ -133,9 +133,15 @@ class Settings(BaseSettings):
     LISTING_EXPIRY_DAYS: int = int(os.environ.get("LISTING_EXPIRY_DAYS", "30"))
     DEFAULT_CURRENCY: str = os.environ.get("DEFAULT_CURRENCY", "GHS")
 
-    # YMCA membership payment amounts (GHS)
-    MONTHLY_DUES_AMOUNT_GHS: float = float(os.environ.get("MONTHLY_DUES_AMOUNT_GHS", "50"))
-    ANNUAL_AFFILIATION_AMOUNT_GHS: float = float(os.environ.get("ANNUAL_AFFILIATION_AMOUNT_GHS", "200"))
+    # Combined monthly membership bill (dues + affiliation) in GHS. 20 x 12 = 240/year.
+    MONTHLY_DUES_AMOUNT_GHS: float = float(os.environ.get("MONTHLY_DUES_AMOUNT_GHS", "20"))
+    ANNUAL_AFFILIATION_AMOUNT_GHS: float = float(
+        os.environ.get("ANNUAL_AFFILIATION_AMOUNT_GHS", "0")
+    )
+
+    @property
+    def ANNUAL_MEMBERSHIP_AMOUNT_GHS(self) -> float:
+        return round(self.MONTHLY_DUES_AMOUNT_GHS * 12, 2)
 
     # YMCA membership growth targets
     YMCA_ORGANIZATION_MEMBER_TARGET: int = int(os.environ.get("YMCA_ORGANIZATION_MEMBER_TARGET", "1000"))

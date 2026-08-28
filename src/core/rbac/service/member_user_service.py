@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from core.branches.model.Branch import Branch
@@ -77,13 +77,13 @@ class MemberUserService:
         dues_pending = members.filter(
             or_(
                 User.month_dues_paid_status.is_(None),
-                User.month_dues_paid_status != "PAID",
+                func.upper(User.month_dues_paid_status).notin_(["YES", "PAID"]),
             )
         ).count()
         affiliation_pending = members.filter(
             or_(
                 User.year_affiliation_paid_status.is_(None),
-                User.year_affiliation_paid_status != "PAID",
+                func.upper(User.year_affiliation_paid_status).notin_(["YES", "PAID"]),
             )
         ).count()
 
