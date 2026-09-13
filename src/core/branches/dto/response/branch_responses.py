@@ -46,6 +46,17 @@ class BranchListResponse(BaseModel):
     branches: List[BranchResponse]
 
 
+class PublicBranchItem(BaseModel):
+    id: str
+    name: str
+    region_id: str
+    region_name: str
+
+
+class PublicBranchListResponse(BaseModel):
+    branches: List[PublicBranchItem]
+
+
 class TopBranchStat(BaseModel):
     branch_id: str
     branch_name: str

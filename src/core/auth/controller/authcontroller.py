@@ -10,7 +10,13 @@ from core.auth.dto.request.otp_verify import OTPVerifyRequest
 from core.auth.dto.request.refresh_token import RefreshTokenRequest
 from core.auth.dto.response.admin_response import AdminResponse
 from core.auth.service.authservice import AuthService
-from core.auth.dependencies import get_db, validate_token, require_admin, optional_admin_user
+from core.auth.dependencies import (
+    get_db,
+    get_current_user,
+    validate_token,
+    require_admin,
+    optional_admin_user,
+)
 from core.user.model.User import User
 import logging
 
@@ -53,13 +59,14 @@ async def verify_account(
 
 
 @auth_routes.post("/reset-password")
+@auth_routes.post("/admin/change-password")
 async def reset_password(
     request: ResetPasswordRequest,
     db: Session = Depends(get_db),
-    authjwt: AuthJWT = Depends(validate_token)
+    user: User = Depends(get_current_user),
 ):
     auth_service = AuthService(db)
-    return auth_service.reset_password(request)
+    return auth_service.change_password(user, request)
 
 
 @auth_routes.post("/no-auth/reset-password")

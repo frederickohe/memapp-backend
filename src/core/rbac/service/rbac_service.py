@@ -45,6 +45,8 @@ class RbacService:
         actor_role = self.get_user_role(actor)
         if not actor_role:
             return False
+        if not target_role.is_system and actor_role.name == "national_admin":
+            return True
         allowed = set(ASSIGNABLE_ROLES.get(actor_role.name, []))
         return target_role.name in allowed
 

@@ -19,7 +19,13 @@ class UserResponse(BaseModel):
     # Membership Information
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
+    branch_id: Optional[str] = None
     member_id: Optional[str] = None
+    date_joined_organization: Optional[date] = None
+    past_positions: Optional[List[str]] = None
+    role_id: Optional[str] = None
+    role: Optional[str] = None
+    position: Optional[str] = None
     volunteer_points: int = 0
     month_dues_paid_status: Optional[str] = None
     year_affiliation_paid_status: Optional[str] = None

@@ -58,7 +58,7 @@ YMCA_PROFILE = SocialProfile(
 )
 
 PLACEHOLDER_IMAGE = (
-    "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=80"
+    "https://ymcaghana.org/wp-content/uploads/2026/09/BJ6A6479-1024x683.jpg"
 )
 
 

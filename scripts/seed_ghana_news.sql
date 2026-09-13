@@ -130,7 +130,7 @@ The Association remains committed to raising a generation of climate-conscious l
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO news_media (id, news_id, url, media_type, "order") VALUES
-('MEDIA_ImpactAward1', 'NEWS_ImpactAward1', 'https://ymcaghana.org/wp-content/uploads/2026/08/ChatGPT-Image-Aug-6-2026-04_43_21-PM-1024x768.png', 'IMAGE', 0),
+('MEDIA_ImpactAward1', 'NEWS_ImpactAward1', 'https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-07-23-at-10.41.38-PM-1.jpeg', 'IMAGE', 0),
 ('MEDIA_PresidentElc', 'NEWS_PresidentElc', 'https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-08-25-at-8.37.14-AM-1024x768.jpeg', 'IMAGE', 0),
 ('MEDIA_SmartGirl001', 'NEWS_SmartGirl001', 'https://ymcaghana.org/wp-content/uploads/2026/06/smart.jpg', 'IMAGE', 0),
 ('MEDIA_YouthJustic1', 'NEWS_YouthJustic1', 'https://ymcaghana.org/wp-content/uploads/2026/04/Youth-Justice-iii.jpg', 'IMAGE', 0),
@@ -138,4 +138,97 @@ INSERT INTO news_media (id, news_id, url, media_type, "order") VALUES
 ('MEDIA_Resilience01', 'NEWS_Resilience01', 'https://ymcaghana.org/wp-content/uploads/2026/06/Resilience-Africa-cover2.jpg', 'IMAGE', 0),
 ('MEDIA_FilmSchool01', 'NEWS_FilmSchool01', 'https://ymcaghana.org/wp-content/uploads/2026/05/dfs-1024x683.jpg', 'IMAGE', 0),
 ('MEDIA_EarthDay0001', 'NEWS_EarthDay0001', 'https://ymcaghana.org/wp-content/uploads/2025/07/mother.jpg', 'IMAGE', 0)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO news (
+  id, admin_id, title, content, summary, content_type, is_impact_story,
+  event_date, event_location, is_published, created_at, updated_at, published_at
+) VALUES
+(
+  'NEWS_BritishCoun1',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Leadership Pays Courtesy Visit to British Council',
+  $c$The National President of the Ghana YMCA, Mr. George Dela Coffie, together with the Executive Director, Mr. Kwabena Nketia Addae, and the National Programmes Director, Mr. Samuel Asamoah, paid a courtesy visit to the Country Director of the British Council, Mr. Nii Doodo Dodoo.
+
+The visit focused on strengthening collaboration and exploring opportunities for strategic partnership between Ghana YMCA and the British Council, particularly in areas that advance youth development and empowerment.
+
+Ghana YMCA remains committed to building strong partnerships that create meaningful opportunities and lasting impact for young people and communities.$c$,
+  'National President George Dela Coffie, Executive Director Kwabena Nketia Addae, and Programmes Director Samuel Asamoah visited the British Council in Accra.',
+  'NEWS', false, NULL, NULL, true,
+  '2026-09-04 12:00:00+00', '2026-09-04 12:00:00+00', '2026-09-04 12:00:00+00'
+),
+(
+  'NEWS_YouthConf001',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Holds 23rd National Youth Conference in Takoradi',
+  $c$Young people from branches across Ghana gathered in Takoradi for the 23rd National Youth Conference, a flagship gathering of fellowship, leadership formation, and service.
+
+Delegates took part in plenaries, workshops, worship, and community outreach. The conference renewed the movement’s call for youth to lead with integrity and to carry practical projects back to their regions.
+
+Ghana YMCA thanked host branches in the Western Region, partners, and volunteers who made the week possible.$c$,
+  'Delegates from across Ghana met in Takoradi for the 23rd National Youth Conference, a week of leadership, fellowship, and service.',
+  'NEWS', true, NULL, NULL, true,
+  '2026-09-09 12:00:00+00', '2026-09-09 12:00:00+00', '2026-09-09 12:00:00+00'
+),
+(
+  'NEWS_CVJMInterns1',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Welcomes Two Interns from CVJM Westbund',
+  $c$Ghana YMCA has welcomed two interns from long-standing partner CVJM Westbund. The interns will serve alongside staff and volunteers at national headquarters and selected branches.
+
+The exchange continues a partnership that has supported programmes such as Smart Girl and youth leadership development. During their stay the interns will learn from Ghana YMCA’s community work and share experiences from the German YMCA movement.
+
+Members are invited to greet the visitors at branch activities and help them feel at home.$c$,
+  'Two interns from partner movement CVJM Westbund have arrived to serve with Ghana YMCA staff and branches.',
+  'NEWS', false, NULL, NULL, true,
+  '2026-08-26 12:00:00+00', '2026-08-26 12:00:00+00', '2026-08-26 12:00:00+00'
+),
+(
+  'NEWS_ClinicDonat1',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Donates Medical Equipment to YMCA Clinic at Akpafu Odomi',
+  $c$Ghana YMCA has donated medical equipment and essential supplies to the YMCA clinic at Akpafu Odomi, strengthening healthcare access for families in the community.
+
+The donation is part of the Association’s long commitment to community wellbeing — standing with local health workers, volunteers, and partners to keep clinics stocked and welcoming.
+
+Branch members joined the presentation and pledged continued support for the clinic’s outreach to mothers, children, and older residents.$c$,
+  'Ghana YMCA delivered medical equipment and supplies to the YMCA clinic at Akpafu Odomi to support community healthcare.',
+  'NEWS', true, NULL, NULL, true,
+  '2025-10-08 12:00:00+00', '2025-10-08 12:00:00+00', '2025-10-08 12:00:00+00'
+),
+(
+  'NEWS_NuhuFamily01',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Has Given Me a Family I Can Rely On Forever — Nuhu',
+  $c$Nuhu, a Ghana YMCA member, says the Association gave him a family he can rely on. Through branch life, mentoring, and programmes, he found belonging, skills, and people who walked with him through difficult seasons.
+
+His story is one of many across the movement: young people who arrive looking for a place to grow and stay because they are seen, trusted, and sent out to serve.
+
+Ghana YMCA continues to open that same door — in Accra, Kumasi, Takoradi, Ho, Koforidua, and communities beyond the regional centres.$c$,
+  'Member Nuhu shares how Ghana YMCA became a family, offering belonging, mentoring, and a place to grow.',
+  'NEWS', true, NULL, NULL, true,
+  '2025-08-20 12:00:00+00', '2025-08-20 12:00:00+00', '2025-08-20 12:00:00+00'
+),
+(
+  'NEWS_FilmTour0001',
+  'ymD3MaEjEkbOmtxv8fye',
+  'Ghana YMCA Concludes Cross-Country Filmmaking Training Tour',
+  $c$Ghana YMCA has concluded a cross-country filmmaking training tour that took practical media education to young people beyond Accra.
+
+At the Accra certificate ceremony, Executive Director Kwabena Nketia Addae thanked partners for staying the course and said the project gave young filmmakers hope and skills they can use for work and peacebuilding.
+
+The tour is part of Ghana YMCA’s wider media and creative-industry work, including Resilience Africa and Digital Film School Africa.$c$,
+  'A cross-country filmmaking tour equipped young storytellers in communities across Ghana, ending with a certificate ceremony in Accra.',
+  'NEWS', true, NULL, NULL, true,
+  '2026-05-12 12:00:00+00', '2026-05-12 12:00:00+00', '2026-05-12 12:00:00+00'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO news_media (id, news_id, url, media_type, "order") VALUES
+('MEDIA_BritishCoun1', 'NEWS_BritishCoun1', 'https://ymcaghana.org/wp-content/uploads/2026/09/CS1A0584-1024x683.jpg', 'IMAGE', 0),
+('MEDIA_YouthConf001', 'NEWS_YouthConf001', 'https://ymcaghana.org/wp-content/uploads/2026/09/DSF3343-1024x567.jpg', 'IMAGE', 0),
+('MEDIA_CVJMInterns1', 'NEWS_CVJMInterns1', 'https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-08-26-at-4.27.23-AM-2.jpeg', 'IMAGE', 0),
+('MEDIA_ClinicDonat1', 'NEWS_ClinicDonat1', 'https://ymcaghana.org/wp-content/uploads/2025/09/558963013_1262604602573430_2295677114338709682_n-1024x536.jpg', 'IMAGE', 0),
+('MEDIA_NuhuFamily01', 'NEWS_NuhuFamily01', 'https://ymcaghana.org/wp-content/uploads/2020/08/672674096_1420527290114493_5055487864127650862_n-1024x768.jpg', 'IMAGE', 0),
+('MEDIA_FilmTour0001', 'NEWS_FilmTour0001', 'https://ymcaghana.org/wp-content/uploads/2026/05/702893555_1452629283570960_7183772618461304906_n-1-1024x766.jpg', 'IMAGE', 0)
 ON CONFLICT (id) DO NOTHING;

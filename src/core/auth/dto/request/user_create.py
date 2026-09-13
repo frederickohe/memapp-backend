@@ -11,6 +11,7 @@ OPTIONAL_STRING_FIELDS = {
     "address",
     "membership_type",
     "current_branch",
+    "branch_id",
     "member_id",
     "facebook_url",
     "whatsapp_number",
@@ -38,7 +39,10 @@ class UserCreateRequest(BaseModel):
     # Membership Information
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
+    branch_id: Optional[str] = None
     member_id: Optional[str] = None
+    date_joined_organization: Optional[date] = None
+    past_positions: Optional[List[str]] = None
 
     # Connection Information
     facebook_url: Optional[str] = None
@@ -74,7 +78,7 @@ class UserCreateRequest(BaseModel):
             raise ValueError("Full name is required")
         return name
 
-    @validator("date_of_birth", pre=True)
+    @validator("date_of_birth", "date_joined_organization", pre=True)
     def empty_date_to_none(cls, value):
         if value == "" or value is None:
             return None

@@ -66,6 +66,8 @@ class User(Base):
     current_branch: Mapped[Optional[str]] = mapped_column(String(100))
     branch_id: Mapped[Optional[str]] = mapped_column(String(20), ForeignKey("branches.id"), nullable=True)
     member_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
+    date_joined_organization: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    past_positions: Mapped[Optional[List[str]]] = mapped_column(JSON)
     volunteer_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     month_dues_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)
     year_affiliation_paid_status: Mapped[Optional[str]] = mapped_column(String, default=None)

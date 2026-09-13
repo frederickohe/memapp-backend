@@ -17,6 +17,7 @@ from core.branches.dto.response.branch_responses import (
     BranchResponse,
     BroadcastMessageResponse,
     ProgressOverviewResponse,
+    PublicBranchListResponse,
     RegionListResponse,
     RegionResponse,
 )
@@ -28,6 +29,12 @@ from core.rbac.dto.response.api_envelope import ApiEnvelope
 from core.user.model.User import User
 
 branch_routes = APIRouter()
+public_branch_routes = APIRouter()
+
+
+@public_branch_routes.get("/branches", response_model=PublicBranchListResponse)
+def list_public_branches(db: Session = Depends(get_db)):
+    return BranchService(db).list_public_branches()
 
 
 @branch_routes.get("/regions", response_model=ApiEnvelope[RegionListResponse])

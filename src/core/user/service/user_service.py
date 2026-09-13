@@ -19,6 +19,7 @@ from core.user.dto.request.user_filter_request import UserFilterRequest
 from core.user.dto.response.message_response import MessageResponse
 from core.user.dto.response.user_response import UserResponse
 from core.user.dto.request.user_update_request import UserUpdateRequest
+from core.user.service.membership_helpers import resolve_branch, resolve_position
 
 def connected_user_ids(value):
     if not value:
@@ -38,6 +39,48 @@ class UserService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _to_response(self, user: User) -> UserResponse:
+        return UserResponse(
+            id=user.id,
+            fullname=user.fullname,
+            email=user.email,
+            phone_number=user.phone_number,
+            nationality=user.nationality,
+            date_of_birth=user.date_of_birth,
+            gender=user.gender,
+            address=user.address,
+            profile_picture_url=user.profile_picture_url,
+            membership_type=user.membership_type,
+            current_branch=user.current_branch,
+            branch_id=user.branch_id,
+            member_id=user.member_id,
+            date_joined_organization=user.date_joined_organization,
+            past_positions=user.past_positions,
+            role_id=user.role_id,
+            role=user.role,
+            position=resolve_position(self.db, user),
+            volunteer_points=user.volunteer_points or 0,
+            month_dues_paid_status=user.month_dues_paid_status,
+            year_affiliation_paid_status=user.year_affiliation_paid_status,
+            occupation=user.occupation,
+            organization_workplace=user.organization_workplace,
+            skills=user.skills,
+            experiences=user.experiences,
+            connected_users=connected_user_ids(user.connected_users),
+            facebook_url=user.facebook_url,
+            whatsapp_number=user.whatsapp_number,
+            linkedin_url=user.linkedin_url,
+            twitter_url=user.twitter_url,
+            instagram_url=user.instagram_url,
+            profile_sharing=user.profile_sharing,
+            in_app_notification=user.in_app_notification,
+            sms_notification=user.sms_notification,
+            enabled=user.enabled,
+            status=user.status,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
+
     def get_current_user(self, identifier: str) -> UserResponse:
         # Try to find by email first, then by id as a fallback.
         user = self.db.query(User).filter(User.email == identifier).first()
@@ -51,137 +94,20 @@ class UserService:
             user = self.db.query(User).filter(User.id == identifier).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return UserResponse(
-            id=user.id,
-            fullname=user.fullname,
-            email=user.email,
-            phone_number=user.phone_number,
-            
-            nationality=user.nationality,
-            date_of_birth=user.date_of_birth,
-            gender=user.gender,
-            address=user.address,
-            profile_picture_url=user.profile_picture_url,
-            
-            membership_type=user.membership_type,
-            current_branch=user.current_branch,
-            member_id=user.member_id,
-            volunteer_points=user.volunteer_points or 0,
-            month_dues_paid_status=user.month_dues_paid_status,
-            year_affiliation_paid_status=user.year_affiliation_paid_status,
-            
-            occupation=user.occupation,
-            organization_workplace=user.organization_workplace,
-            skills=user.skills,
-            experiences=user.experiences,
-            
-            connected_users=connected_user_ids(user.connected_users),
-            
-            facebook_url=user.facebook_url,
-            whatsapp_number=user.whatsapp_number,
-            linkedin_url=user.linkedin_url,
-            twitter_url=user.twitter_url,
-            instagram_url=user.instagram_url,
-            
-            profile_sharing=user.profile_sharing,
-            in_app_notification=user.in_app_notification,
-            sms_notification=user.sms_notification,
-            enabled=user.enabled,
-            status=user.status,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
+        return self._to_response(user)
 
     def get_user_by_id(self, user_id: str) -> UserResponse:
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return UserResponse(
-            id=user.id,
-            fullname=user.fullname,
-            email=user.email,
-            phone_number=user.phone_number,
-            
-            nationality=user.nationality,
-            date_of_birth=user.date_of_birth,
-            gender=user.gender,
-            address=user.address,
-            profile_picture_url=user.profile_picture_url,
-            
-            membership_type=user.membership_type,
-            current_branch=user.current_branch,
-            member_id=user.member_id,
-            volunteer_points=user.volunteer_points or 0,
-            month_dues_paid_status=user.month_dues_paid_status,
-            year_affiliation_paid_status=user.year_affiliation_paid_status,
-            
-            occupation=user.occupation,
-            organization_workplace=user.organization_workplace,
-            skills=user.skills,
-            experiences=user.experiences,
-            
-            connected_users=connected_user_ids(user.connected_users),
-            
-            facebook_url=user.facebook_url,
-            whatsapp_number=user.whatsapp_number,
-            linkedin_url=user.linkedin_url,
-            twitter_url=user.twitter_url,
-            instagram_url=user.instagram_url,
-            
-            profile_sharing=user.profile_sharing,
-            in_app_notification=user.in_app_notification,
-            sms_notification=user.sms_notification,
-            enabled=user.enabled,
-            status=user.status,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
+        return self._to_response(user)
 
     # get user by phone number
     def get_user_by_phone(self, phone_number: str) -> UserResponse:
         user = self.db.query(User).filter(User.phone_number == phone_number).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return UserResponse(
-            id=user.id,
-            fullname=user.fullname,
-            email=user.email,
-            phone_number=user.phone_number,
-            
-            nationality=user.nationality,
-            date_of_birth=user.date_of_birth,
-            gender=user.gender,
-            address=user.address,
-            profile_picture_url=user.profile_picture_url,
-            
-            membership_type=user.membership_type,
-            current_branch=user.current_branch,
-            member_id=user.member_id,
-            volunteer_points=user.volunteer_points or 0,
-            month_dues_paid_status=user.month_dues_paid_status,
-            year_affiliation_paid_status=user.year_affiliation_paid_status,
-            
-            occupation=user.occupation,
-            organization_workplace=user.organization_workplace,
-            skills=user.skills,
-            experiences=user.experiences,
-            
-            connected_users=connected_user_ids(user.connected_users),
-            
-            facebook_url=user.facebook_url,
-            whatsapp_number=user.whatsapp_number,
-            linkedin_url=user.linkedin_url,
-            twitter_url=user.twitter_url,
-            instagram_url=user.instagram_url,
-            
-            profile_sharing=user.profile_sharing,
-            in_app_notification=user.in_app_notification,
-            sms_notification=user.sms_notification,
-            enabled=user.enabled,
-            status=user.status,
-            created_at=user.created_at,
-            updated_at=user.updated_at
-        )
+        return self._to_response(user)
     
     def set_user_enabled_status(self, user_id: str, enabled: bool) -> MessageResponse:
         user = self.db.query(User).filter(User.id == user_id).first()
@@ -236,6 +162,17 @@ class UserService:
             data.pop("member_id", None)
             if data.get("whatsapp_number"):
                 data["whatsapp_number"] = str(data["whatsapp_number"])[:20]
+
+            if "branch_id" in data or "current_branch" in data:
+                resolved_id, resolved_name = resolve_branch(
+                    self.db,
+                    branch_id=data.pop("branch_id", None) or None,
+                    current_branch=data.pop("current_branch", None),
+                )
+                user.branch_id = resolved_id
+                if resolved_name is not None:
+                    user.current_branch = resolved_name
+
             for key, value in data.items():
                 if hasattr(user, key):
                     setattr(user, key, value)
@@ -251,6 +188,15 @@ class UserService:
                 raise HTTPException(status_code=404, detail="User not found")
 
             data = payload.dict(exclude_unset=True)
+            if "branch_id" in data or "current_branch" in data:
+                resolved_id, resolved_name = resolve_branch(
+                    self.db,
+                    branch_id=data.pop("branch_id", None) or None,
+                    current_branch=data.pop("current_branch", None),
+                )
+                user.branch_id = resolved_id
+                if resolved_name is not None:
+                    user.current_branch = resolved_name
             for key, value in data.items():
                 if hasattr(user, key):
                     setattr(user, key, value)
@@ -258,4 +204,4 @@ class UserService:
             user.updated_at = datetime.utcnow()
             self.db.commit()
             self.db.refresh(user)
-            return MessageResponse(message="User updated successfully")
+            return self._to_response(user)

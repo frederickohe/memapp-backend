@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from core.auth.dependencies import get_db
 from core.rbac.dependencies import require_permission
-from core.rbac.dto.request.member_user_requests import UpdateMemberUserRequest
+from core.rbac.dto.request.member_user_requests import AssignMemberRoleRequest, UpdateMemberUserRequest
 from core.rbac.dto.response.api_envelope import ApiEnvelope, ApiMessage
 from core.rbac.dto.response.member_user_responses import (
     MemberUserListResponse,
@@ -81,6 +81,17 @@ def update_member_user(
 ):
     service = MemberUserService(db)
     return ApiEnvelope(data=service.update_member_user(user_id, request))
+
+
+@member_user_routes.post("/members/{user_id}/assign-role", response_model=ApiEnvelope[MemberUserResponse])
+def assign_member_role(
+    user_id: str,
+    request: AssignMemberRoleRequest,
+    actor: User = Depends(require_permission("admin_users.update")),
+    db: Session = Depends(get_db),
+):
+    service = MemberUserService(db)
+    return ApiEnvelope(data=service.assign_member_role(user_id, request, actor))
 
 
 @member_user_routes.post("/members/{user_id}/deactivate", response_model=ApiEnvelope[ApiMessage])

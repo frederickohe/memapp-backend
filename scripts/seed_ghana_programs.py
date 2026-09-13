@@ -145,7 +145,7 @@ PROGRAMS = [
         "form_key": "film",
         "category": "Education",
         "location": "Accra · Online",
-        "thumbnail_url": "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/04/DFSABanner-1024x683.jpg",
         "description": (
             "Digital Film School Africa is a digital-first film education programme co-hosted by "
             "YMCA Ghana and the African University of Communications and Business (AUCB), in "
@@ -162,7 +162,7 @@ PROGRAMS = [
         "form_key": "smart_girl",
         "category": "Youth",
         "location": "Communities across Ghana",
-        "thumbnail_url": "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/04/Smart-Girl-Cover--1024x683.jpg",
         "description": (
             "Smart Girl Project expands access to menstrual health education and life skills "
             "training for girls across communities. The programme provides practical learning in "
@@ -178,7 +178,7 @@ PROGRAMS = [
         "form_key": "general",
         "category": "Justice",
         "location": "National · Ghana",
-        "thumbnail_url": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/04/Youth-Justice-iii-cover-1024x683.jpg",
         "description": (
             "Youth Justice III promotes fairness, protection, and equal opportunities for young "
             "people through advocacy, inclusive education, legal awareness, and community-driven "
@@ -192,7 +192,7 @@ PROGRAMS = [
         "form_key": "general",
         "category": "Environment",
         "location": "Ghana YMCA branches",
-        "thumbnail_url": "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/04/Green-Ideas-cover-1024x683.jpg",
         "description": (
             "Green Ideas provides science-based climate change education, promotes environmental "
             "sustainability and eco-friendly practices, and empowers young people to take "
@@ -206,7 +206,7 @@ PROGRAMS = [
         "form_key": "film",
         "category": "Education",
         "location": "Accra",
-        "thumbnail_url": "https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/06/coverMoving-Beyond-1024x683.jpg",
         "description": (
             "Moving Beyond develops young filmmakers through specialized training, mentorship, "
             "and creative storytelling, creating pathways to meaningful careers and positive "
@@ -220,7 +220,7 @@ PROGRAMS = [
         "form_key": "film",
         "category": "Education",
         "location": "Accra · National",
-        "thumbnail_url": "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1400&q=80",
+        "thumbnail_url": "https://ymcaghana.org/wp-content/uploads/2026/06/Resilience-Africa-cover-1024x683.jpg",
         "description": (
             "The Resilience Africa Film Project provides practical filmmaking training while "
             "empowering young storytellers to build creative skills, confidence, and meaningful "
@@ -243,7 +243,7 @@ EVENTS = [
         ),
         "event_date": datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc),
         "event_location": "YMCA National Headquarters, Accra",
-        "image": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=80",
+        "image": "https://ymcaghana.org/wp-content/uploads/2026/09/DSF3343-1024x567.jpg",
     },
     {
         "title": "Community Outreach & Health Day",
@@ -255,7 +255,7 @@ EVENTS = [
         ),
         "event_date": datetime(2026, 10, 4, 9, 0, tzinfo=timezone.utc),
         "event_location": "Selected YMCA branches nationwide",
-        "image": "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1400&q=80",
+        "image": "https://ymcaghana.org/wp-content/uploads/2026/04/transform.jpeg",
     },
     {
         "title": "New Member Orientation",
@@ -267,7 +267,7 @@ EVENTS = [
         ),
         "event_date": datetime(2026, 9, 20, 14, 0, tzinfo=timezone.utc),
         "event_location": "YMCA National Headquarters, Accra",
-        "image": "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1400&q=80",
+        "image": "https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-08-26-at-4.27.23-AM-2.jpeg",
     },
 ]
 
@@ -311,7 +311,8 @@ def main() -> None:
         for spec in PROGRAMS:
             existing = db.query(Program).filter(Program.title == spec["title"]).first()
             if existing:
-                print(f"Program exists: {spec['title']} ({existing.id})")
+                existing.thumbnail_url = spec["thumbnail_url"]
+                print(f"Program updated: {spec['title']} ({existing.id})")
                 continue
             form_id = form_ids[spec["form_key"]]
             created = program_service.create_program(
@@ -338,12 +339,25 @@ def main() -> None:
             )
             print(f"Created program: {created.title} ({created.id})")
 
-        from core.news.model.News import News
+        from core.news.model.News import News, NewsMedia
 
         for spec in EVENTS:
             existing = db.query(News).filter(News.title == spec["title"]).first()
             if existing:
-                print(f"Event exists: {spec['title']} ({existing.id})")
+                media = (
+                    db.query(NewsMedia)
+                    .filter(NewsMedia.news_id == existing.id)
+                    .order_by(NewsMedia.order.asc())
+                    .first()
+                )
+                if media:
+                    media.url = spec["image"]
+                else:
+                    news_service._add_media(
+                        existing,
+                        [{"url": spec["image"], "media_type": MediaType.IMAGE, "order": 0}],
+                    )
+                print(f"Event updated: {spec['title']} ({existing.id})")
                 continue
             created = news_service.create_news(
                 admin_id=admin_id,
@@ -358,6 +372,7 @@ def main() -> None:
             )
             print(f"Created event: {created.title} ({created.id})")
 
+        db.commit()
         print("Seed complete.")
     finally:
         db.close()

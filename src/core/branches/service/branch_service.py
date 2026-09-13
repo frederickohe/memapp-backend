@@ -15,6 +15,8 @@ from core.branches.dto.response.branch_responses import (
     BranchListResponse,
     BranchPresidentSummary,
     BranchResponse,
+    PublicBranchItem,
+    PublicBranchListResponse,
     RegionListResponse,
     RegionResponse,
 )
@@ -123,6 +125,26 @@ class BranchService:
 
         branches = query.all()
         return BranchListResponse(branches=[self._branch_to_response(b) for b in branches])
+
+    def list_public_branches(self) -> PublicBranchListResponse:
+        query = (
+            self.db.query(Branch)
+            .options(joinedload(Branch.region))
+            .filter(Branch.is_active.is_(True))
+            .order_by(Branch.name.asc())
+        )
+        branches = query.all()
+        return PublicBranchListResponse(
+            branches=[
+                PublicBranchItem(
+                    id=b.id,
+                    name=b.name,
+                    region_id=b.region_id,
+                    region_name=b.region.name if b.region else "",
+                )
+                for b in branches
+            ]
+        )
 
     def get_branch(self, branch_id: str) -> BranchResponse:
         branch = (

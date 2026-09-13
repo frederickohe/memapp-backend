@@ -41,7 +41,7 @@ Kufuor’s presidency marked Ghana’s first democratic transfer of power from o
         "era": "Present",
         "category": "GHANA",
         "sort_order": 2,
-        "photo_url": "https://www.myjoyonline.com/wp-content/uploads/2026/08/IMG_1759.JPG-1024x630.jpeg",
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-08-25-at-8.37.14-AM.jpeg",
         "bio": """George Dela Coffie was elected National President of the Ghana Young Men’s Christian Association at its 4th Quadrennial National Council Meeting in Accra.
 
 A former Ashanti Regional Vice President, he was chosen by 33 accredited delegates after a transparent vetting and election process. He leads the Association for a four-year term alongside Rev. Alex Owusu Addo (National Vice President), Sarah Mamle Kodjie (National Women’s Commissioner), and Frederick Obuo Ohene (National Treasurer).
@@ -89,7 +89,7 @@ Under his leadership the movement launched Vision 2030, the COVID Solidarity Fun
         "era": "1890",
         "category": "GHANA",
         "sort_order": 5,
-        "photo_url": None,
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/05/ourstory.jpg",
         "bio": """Wilkins Miccaber Abbey introduced the YMCA to the Gold Coast in 1890 after encountering the Association during a study tour in Scotland. He started the work in Accra, first known as the Accra United YMCA, making Ghana YMCA one of the earliest voluntary organisations in the country.
 
 In the same period, Bremen Missions in Togoland were encouraging YMCA groups attached to churches and missions. Those early associations did not yet form a single national movement, but Abbey’s initiative planted the seed.
@@ -137,7 +137,7 @@ Naismith was also a physician, chaplain, and coach. Basketball remains one of th
         "era": "Present",
         "category": "GHANA",
         "sort_order": 8,
-        "photo_url": None,
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/08/475298333_636645385695481_3264611505373035510_n.jpg",
         "bio": """Kwabena Nketia Addae is Executive Director of Ghana YMCA, succeeding a line of national general secretaries that began with educationist Charles Amaning.
 
 He leads the professional staff of the Association from its national headquarters in Adabraka, Accra. Under this era of leadership Ghana YMCA has advanced programmes such as Youth Justice, Smart Girl, Green Ideas, and the Media Hub Education Centre, and received the 2026 World YMCA Impact Award.
@@ -169,7 +169,7 @@ Mott received the Nobel Peace Prize in 1946 for drawing together people of many 
         "era": "Recent",
         "category": "GHANA",
         "sort_order": 10,
-        "photo_url": None,
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/09/DSC03297-square-speaker.jpg",
         "bio": """Charles Habiah Esq. served as National President of Ghana YMCA, continuing a line of national chairmen that includes Hon. K. Amoa-Awuah, Kwame Gyimah-Akwafo, and Prof. Emmanuel Larbi Kwame Osafo.
 
 A lawyer by profession, he led the Association through a period of programme expansion, partnership building, and preparation for the next quadrennial leadership cycle. His tenure sits in the same national leadership tradition that later elected George Dela Coffie as National President.
@@ -201,7 +201,7 @@ By the 1950s it was played by tens of millions of people. Volleyball became an O
         "era": "Independence era",
         "category": "GHANA",
         "sort_order": 12,
-        "photo_url": None,
+        "photo_url": "https://africaymca.org/wp-content/uploads/2021/10/council-1.jpg",
         "bio": """The late Hon. K. Amoa-Awuah was the first National Chairman of Ghana YMCA. At the time he also served as Deputy Minister of Health in the government of Osagyefo Dr Kwame Nkrumah.
 
 His leadership came as the Association moved from scattered local groups into a national movement, with headquarters in Accra and regional secretaries across Greater Accra, Ashanti, Brong Ahafo, Western, Central, Eastern, and Volta.
@@ -217,7 +217,7 @@ Amoa-Awuah’s dual role in public office and YMCA leadership set a pattern that
         "era": "National founding years",
         "category": "GHANA",
         "sort_order": 13,
-        "photo_url": None,
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/04/hostel_.png",
         "bio": """Charles Amaning, an educationist, was the first National General Secretary of Ghana YMCA. He built the professional secretariat that turned a collection of local associations into a coordinated national movement.
 
 He was succeeded by Emmanuel A. Boateng, then Samuel Edmund Nyame, Alfred A. Sarkodie, Samuel Henry Edward Anim, Prosper Hoeyi, and today’s Executive Director, Kwabena Nketia Addae.
@@ -233,7 +233,7 @@ Amaning’s work sits behind the later expansion of vocational training, rural d
         "era": "Recent decades",
         "category": "GHANA",
         "sort_order": 14,
-        "photo_url": None,
+        "photo_url": "https://ymcaghana.org/wp-content/uploads/2026/08/WhatsApp-Image-2026-08-25-at-8.07.29-AM.jpeg",
         "bio": """Kwame Gyimah-Akwafo served as National President of Ghana YMCA and is remembered among the Association’s high-profile national chairmen.
 
 During his leadership he articulated the movement’s vision of empowering young people in Ghana for the African renaissance — the same vision Ghana YMCA still carries as a member of the African Alliance of YMCAs.

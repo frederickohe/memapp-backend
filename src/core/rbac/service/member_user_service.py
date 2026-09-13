@@ -7,23 +7,35 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from core.branches.model.Branch import Branch
+from core.branches.model.Region import Region
 from core.branches.service.scope_helper import apply_member_scope, resolve_scope
-from core.rbac.dto.request.member_user_requests import UpdateMemberUserRequest
+from core.exceptions.AuthException import PermissionDeniedError
+from core.rbac.dto.request.member_user_requests import AssignMemberRoleRequest, UpdateMemberUserRequest
 from core.rbac.dto.response.member_user_responses import (
     MemberUserListResponse,
     MemberUserOverviewResponse,
     MemberUserResponse,
 )
+from core.rbac.service.rbac_service import RbacService
+from core.rbac.service.role_service import RoleService
 from core.dashboard.dto.response.dashboardresponse import ProminentProfileResponse
 from core.user.model.User import User, UserStatus, UserType
+from core.user.service.membership_helpers import format_role_label, resolve_branch, resolve_position
 
 
 class MemberUserService:
     def __init__(self, db: Session):
         self.db = db
+        self.rbac = RbacService(db)
+        self.role_service = RoleService(db)
 
     def _base_query(self):
-        return self.db.query(User).filter(User.user_type == UserType.MEMBER)
+        return self.db.query(User).filter(
+            or_(
+                User.user_type == UserType.MEMBER,
+                User.member_id.isnot(None),
+            )
+        )
 
     def _to_response(self, user: User) -> MemberUserResponse:
         branch_name = None
@@ -32,6 +44,11 @@ class MemberUserService:
             branch_name = user.branch.name
             if user.branch.region:
                 region_name = user.branch.region.name
+        role_name = None
+        if user.admin_role:
+            role_name = user.admin_role.name
+        elif user.role:
+            role_name = user.role.lower()
         return MemberUserResponse(
             id=user.id,
             full_name=user.fullname,
@@ -39,10 +56,18 @@ class MemberUserService:
             phone=user.phone_number,
             member_id=user.member_id,
             membership_type=user.membership_type,
+            date_joined_organization=user.date_joined_organization,
+            past_positions=user.past_positions or [],
             current_branch=user.current_branch or branch_name,
             branch_id=user.branch_id,
             branch_name=branch_name,
             region_name=region_name,
+            user_type=user.user_type,
+            role_id=user.role_id,
+            role_name=role_name,
+            position=format_role_label(role_name) or resolve_position(self.db, user),
+            assigned_region=user.assigned_region,
+            assigned_branch=user.assigned_branch,
             month_dues_paid_status=user.month_dues_paid_status,
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             volunteer_points=user.volunteer_points or 0,
@@ -117,7 +142,10 @@ class MemberUserService:
 
         query = (
             self._base_query()
-            .options(joinedload(User.branch).joinedload(Branch.region))
+            .options(
+                joinedload(User.branch).joinedload(Branch.region),
+                joinedload(User.admin_role),
+            )
             .order_by(User.created_at.desc())
         )
         query = apply_member_scope(
@@ -159,7 +187,15 @@ class MemberUserService:
         )
 
     def get_member_user(self, user_id: str) -> MemberUserResponse:
-        user = self._base_query().filter(User.id == user_id).first()
+        user = (
+            self._base_query()
+            .options(
+                joinedload(User.branch).joinedload(Branch.region),
+                joinedload(User.admin_role),
+            )
+            .filter(User.id == user_id)
+            .first()
+        )
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return self._to_response(user)
@@ -180,6 +216,8 @@ class MemberUserService:
             "phone": "phone_number",
             "member_id": "member_id",
             "membership_type": "membership_type",
+            "date_joined_organization": "date_joined_organization",
+            "past_positions": "past_positions",
             "current_branch": "current_branch",
             "branch_id": "branch_id",
             "month_dues_paid_status": "month_dues_paid_status",
@@ -194,15 +232,113 @@ class MemberUserService:
             if hasattr(user, attr):
                 setattr(user, attr, value)
 
-        if "branch_id" in data and data["branch_id"]:
-            branch = self.db.query(Branch).filter(Branch.id == data["branch_id"]).first()
-            if branch:
-                user.current_branch = branch.name
+        if "branch_id" in data or "current_branch" in data:
+            resolved_id, resolved_name = resolve_branch(
+                self.db,
+                branch_id=data.get("branch_id") or None,
+                current_branch=data.get("current_branch"),
+            )
+            user.branch_id = resolved_id
+            if resolved_name is not None:
+                user.current_branch = resolved_name
 
         user.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(user)
-        return self._to_response(user)
+        return self.get_member_user(user.id)
+
+    def assign_member_role(
+        self,
+        user_id: str,
+        request: AssignMemberRoleRequest,
+        actor: User,
+    ) -> MemberUserResponse:
+        user = (
+            self._base_query()
+            .options(
+                joinedload(User.branch).joinedload(Branch.region),
+                joinedload(User.admin_role),
+            )
+            .filter(User.id == user_id)
+            .first()
+        )
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if not request.role_id:
+            user.user_type = UserType.MEMBER
+            user.role_id = None
+            user.role = None
+            user.assigned_region = None
+            user.assigned_branch = None
+            user.assigned_region_id = None
+            user.assigned_branch_id = None
+            user.updated_at = datetime.now(timezone.utc)
+            self.db.commit()
+            return self.get_member_user(user.id)
+
+        target_role = self.role_service.get_role_entity(request.role_id)
+        if not target_role or not target_role.is_active:
+            raise HTTPException(status_code=400, detail="Invalid role selected")
+
+        if not self.rbac.can_assign_role(actor, target_role):
+            raise PermissionDeniedError(
+                detail=f"You cannot assign the {target_role.name} role"
+            )
+
+        assigned_region = request.assigned_region
+        assigned_branch = request.assigned_branch
+        assigned_region_id = None
+        assigned_branch_id = user.branch_id
+
+        if user.branch:
+            if not assigned_branch:
+                assigned_branch = user.branch.name
+            if user.branch.region and not assigned_region:
+                assigned_region = user.branch.region.name
+                assigned_region_id = user.branch.region_id
+
+        if target_role.name == "regional_admin" and not assigned_region:
+            raise HTTPException(
+                status_code=400,
+                detail="Regional admins require an assigned region",
+            )
+        if target_role.name == "branch_admin" and not assigned_branch:
+            raise HTTPException(
+                status_code=400,
+                detail="Branch admins require an assigned branch",
+            )
+
+        if assigned_region:
+            region = (
+                self.db.query(Region)
+                .filter(func.lower(Region.name) == assigned_region.strip().lower())
+                .first()
+            )
+            if region:
+                assigned_region = region.name
+                assigned_region_id = region.id
+
+        if assigned_branch and not assigned_branch_id:
+            branch = (
+                self.db.query(Branch)
+                .filter(func.lower(Branch.name) == assigned_branch.strip().lower())
+                .first()
+            )
+            if branch:
+                assigned_branch = branch.name
+                assigned_branch_id = branch.id
+
+        user.user_type = UserType.ADMIN
+        user.role_id = target_role.id
+        user.role = target_role.name.upper()
+        user.assigned_region = assigned_region
+        user.assigned_branch = assigned_branch
+        user.assigned_region_id = assigned_region_id
+        user.assigned_branch_id = assigned_branch_id
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        return self.get_member_user(user.id)
 
     def list_prominent_profiles(self, limit: int = 10) -> list[ProminentProfileResponse]:
         users = (

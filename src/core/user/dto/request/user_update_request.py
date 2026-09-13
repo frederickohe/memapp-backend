@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class UserUpdateRequest(BaseModel):
@@ -18,7 +18,10 @@ class UserUpdateRequest(BaseModel):
     # Membership Information
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
+    branch_id: Optional[str] = None
     member_id: Optional[str] = None
+    date_joined_organization: Optional[date] = None
+    past_positions: Optional[List[str]] = None
 
     # Professional Information
     occupation: Optional[str] = None
@@ -37,3 +40,9 @@ class UserUpdateRequest(BaseModel):
     profile_sharing: Optional[bool] = None
     in_app_notification: Optional[bool] = None
     sms_notification: Optional[bool] = None
+
+    @validator("date_of_birth", "date_joined_organization", pre=True)
+    def empty_date_to_none(cls, value):
+        if value == "" or value is None:
+            return None
+        return value

@@ -26,7 +26,7 @@ from core.vhs.controller.vhscontroller import vhs_admin_routes, vhs_member_route
 from core.payments.controller.payment_controller import payment_member_routes, payment_admin_routes
 from core.paystack.controller.paystack_controller import paystack_routes
 from core.moolre.controller.moolre_controller import moolre_routes
-from core.branches.controller.branch_controller import branch_routes
+from core.branches.controller.branch_controller import branch_routes, public_branch_routes
 from core.social.controller.socialcontroller import social_routes
 from core.rbac.service.permission_service import PermissionService
 
@@ -129,6 +129,7 @@ app.include_router(payment_admin_routes, prefix="/api/v1/payments/admin", tags=[
 app.include_router(paystack_routes, prefix="/api/v1/paystack", tags=["Paystack"])
 app.include_router(moolre_routes, prefix="/api/v1/moolre", tags=["Moolre"])
 app.include_router(branch_routes, prefix="/api/v1/admin", tags=["Branches & Regions"])
+app.include_router(public_branch_routes, prefix="/api/v1", tags=["Public Branches"])
 
 # JWT Authentication Settings
 

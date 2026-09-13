@@ -14,6 +14,7 @@ from core.auth.service.sessiondriver import SessionDriver
 from core.exceptions.AuthException import InvalidCredentialsError, PermissionDeniedError
 from core.exceptions.UserException import UserAlreadyExistsError
 from core.user.model.User import User, UserType
+from core.user.service.membership_helpers import resolve_branch, resolve_position
 from core.rbac.service.rbac_service import RbacService
 from core.rbac.service.role_service import RoleService
 from core.rbac.service.admin_user_service import AdminUserService
@@ -76,7 +77,11 @@ class AuthService:
             "address": user.address,
             "membership_type": user.membership_type,
             "current_branch": user.current_branch,
+            "branch_id": user.branch_id,
             "member_id": user.member_id,
+            "role_id": user.role_id,
+            "role": user.role,
+            "position": resolve_position(self.db, user),
             "enabled": user.enabled,
             "user_type": user.user_type,
         }
@@ -122,6 +127,12 @@ class AuthService:
         if whatsapp and len(whatsapp) > 20:
             whatsapp = whatsapp[:20]
 
+        branch_id, current_branch = resolve_branch(
+            self.db,
+            branch_id=getattr(request, "branch_id", None),
+            current_branch=request.current_branch,
+        )
+
         db_user = User(
             id=user_id,
             fullname=request.fullname,
@@ -134,8 +145,11 @@ class AuthService:
             gender=request.gender,
             address=request.address,
             membership_type=request.membership_type,
-            current_branch=request.current_branch,
+            current_branch=current_branch,
+            branch_id=branch_id,
             member_id=request.member_id or self.generate_member_id(),
+            date_joined_organization=getattr(request, "date_joined_organization", None),
+            past_positions=getattr(request, "past_positions", None) or [],
             facebook_url=request.facebook_url,
             whatsapp_number=whatsapp,
             linkedin_url=request.linkedin_url,
@@ -482,55 +496,29 @@ class AuthService:
                 detail="Email not valid or expired"
             )
             
-    def reset_password(self, request: BaseModel):
-        """Reset password using a valid reset token (authenticated version)"""
-        try:
-            # Verify the reset token
-            payload = jwt.decode(
-                request.reset_token,
-                self.session_driver.SECRET_KEY,
-                algorithms=[self.session_driver.ALGORITHM]
-            )
-            
-            if payload.get("type") != "reset":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid token type"
-                )
-                
-            email = payload.get("sub")
-            if not email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid token payload"
-                )
-            
-            # Find user and update password
-            db_user = self.db.query(User).filter(User.email == email).first()
-            if not db_user:
-                raise InvalidCredentialsError()
-                
-            db_user.hashed_password = self.hash_password(request.new_password)
-            self.db.commit()
-            
-            # Invalidate all existing tokens
-            self.session_driver.remove_tokens(email)
-            
-            return JSONResponse(
-                status_code=200,
-                content={"message": "Password reset successfully"}
-            )
-            
-        except jwt.ExpiredSignatureError:
+    def change_password(self, user: User, request: BaseModel):
+        """Change password for the authenticated user."""
+        if not self.verify_password(request.current_password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Reset token has expired"
+                detail="Current password is incorrect",
             )
-        except jwt.PyJWTError:
+
+        if request.current_password == request.new_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid reset token"
+                detail="New password must be different from the current password",
             )
+
+        user.hashed_password = self.hash_password(request.new_password)
+        user.reset_required = False
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Password updated successfully"},
+        )
 
     def reset_password_no_auth(self, request: BaseModel):
         """Reset password without authentication (for forgotten password flow)"""
