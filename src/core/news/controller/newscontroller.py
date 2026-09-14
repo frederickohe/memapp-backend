@@ -154,7 +154,9 @@ def update_news(
     db=Depends(get_db),
 ):
     """Update a news segment (Admin only)"""
-    media_list = [media.dict() for media in news_data.media] if news_data.media else None
+    media_list = (
+        None if news_data.media is None else [media.dict() for media in news_data.media]
+    )
 
     news_service = NewsService(db)
     return news_service.update_news(

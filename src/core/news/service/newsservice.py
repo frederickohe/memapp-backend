@@ -264,15 +264,14 @@ class NewsService:
                 news.published_at = datetime.now(timezone.utc)
         
         if media_list is not None:
-            for media in news.media:
-                self.db.delete(media)
-            self._add_media(news, media_list)
-        
+            self.db.query(NewsMedia).filter(NewsMedia.news_id == news.id).delete()
+            self.db.expire(news, ["media"])
+            if media_list:
+                self._add_media(news, media_list)
+
         news.updated_at = datetime.now(timezone.utc)
         self.db.commit()
-        self.db.refresh(news)
-        
-        return self._to_response(news)
+        return self.get_news(news_id)
     
     def delete_news(self, news_id: str, admin_id: str) -> MessageResponse:
         """Delete a news segment (admin only)"""
