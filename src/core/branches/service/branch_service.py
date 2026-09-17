@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from core.branches.dto.request.branch_requests import (
@@ -57,13 +58,19 @@ class BranchService:
         if active_only:
             query = query.filter(Region.is_active.is_(True))
         regions = query.all()
+        counts = dict(
+            self.db.query(Branch.region_id, func.count(Branch.id))
+            .filter(Branch.is_active.is_(True))
+            .group_by(Branch.region_id)
+            .all()
+        )
         return RegionListResponse(
             regions=[
                 RegionResponse(
                     id=r.id,
                     name=r.name,
                     is_active=r.is_active,
-                    branch_count=len([b for b in r.branches if b.is_active]),
+                    branch_count=int(counts.get(r.id, 0)),
                     created_at=r.created_at,
                 )
                 for r in regions
