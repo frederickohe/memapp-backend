@@ -32,6 +32,7 @@ class BranchResponse(BaseModel):
     lng: Optional[float] = None
     president: Optional[BranchPresidentSummary] = None
     is_active: bool
+    collects_dues: bool = True
     created_at: datetime
 
     class Config:

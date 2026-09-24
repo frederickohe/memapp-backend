@@ -19,6 +19,7 @@ class CreateBranchRequest(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
     president_id: Optional[str] = None
+    collects_dues: bool = True
 
 
 class UpdateBranchRequest(BaseModel):
@@ -29,6 +30,7 @@ class UpdateBranchRequest(BaseModel):
     lng: Optional[float] = None
     president_id: Optional[str] = None
     is_active: Optional[bool] = None
+    collects_dues: Optional[bool] = None
 
 
 class AssignPresidentRequest(BaseModel):

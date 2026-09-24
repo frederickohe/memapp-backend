@@ -12,6 +12,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from config import settings
+from core.branches.model.Branch import Branch
 from core.moolre.service.moolreservice import MoolrePaymentService
 from core.paystack.dto.request.paystack_request import PaystackInitializeRequest
 from core.paystack.service.paystack_service import PaystackService
@@ -81,12 +82,45 @@ class PaymentService:
         return f"{calendar.month_name[month]} {year}"
 
     def _amount_for_type(self, payment_type: str) -> float:
-        if payment_type in (
-            PaymentType.MONTHLY_DUES.value,
-            PaymentType.ANNUAL_AFFILIATION.value,
-        ):
+        if payment_type == PaymentType.MONTHLY_DUES.value:
             return settings.MONTHLY_DUES_AMOUNT_GHS
+        if payment_type == PaymentType.ANNUAL_AFFILIATION.value:
+            return round(float(settings.ANNUAL_AFFILIATION_AMOUNT_GHS or 0), 2)
         raise HTTPException(status_code=400, detail="Invalid payment type")
+
+    def _branch_collects_dues(self, user: User) -> bool:
+        if not user.branch_id:
+            return True
+        branch = self.db.query(Branch).filter(Branch.id == user.branch_id).first()
+        if branch is None:
+            return True
+        return bool(branch.collects_dues)
+
+    def _successful_affiliation_payment(self, user_id: str, year: int) -> Optional[Payment]:
+        return (
+            self.db.query(Payment)
+            .filter(
+                Payment.user_id == user_id,
+                Payment.period_year == year,
+                Payment.payment_type == PaymentType.ANNUAL_AFFILIATION.value,
+                Payment.status == PaymentStatus.SUCCESS.value,
+            )
+            .order_by(Payment.paid_at.desc())
+            .first()
+        )
+
+    def _pending_affiliation_payment(self, user_id: str, year: int) -> Optional[Payment]:
+        return (
+            self.db.query(Payment)
+            .filter(
+                Payment.user_id == user_id,
+                Payment.period_year == year,
+                Payment.payment_type == PaymentType.ANNUAL_AFFILIATION.value,
+                Payment.status == PaymentStatus.PENDING.value,
+            )
+            .order_by(Payment.created_at.desc())
+            .first()
+        )
 
     def generate_reference(self, payment_type: str) -> str:
         prefix = _TYPE_PREFIX.get(payment_type, "YMC-PAY")
@@ -120,18 +154,72 @@ class PaymentService:
                 )
         return period_year, period_month
 
-    def _successful_period_payment(self, user_id: str, year: int, month: int) -> Optional[Payment]:
+    @staticmethod
+    def _periods_for(payment: Payment) -> list[tuple[int, int]]:
+        metadata = payment.payment_metadata or {}
+        covered = metadata.get("covered_months") or []
+        periods: list[tuple[int, int]] = []
+        for item in covered:
+            if isinstance(item, dict) and item.get("year") and item.get("month"):
+                periods.append((int(item["year"]), int(item["month"])))
+        if not periods and payment.period_year and payment.period_month:
+            periods.append((int(payment.period_year), int(payment.period_month)))
+        return periods
+
+    def _dues_payments(self, user_id: str, year: int, status: str) -> list[Payment]:
         return (
             self.db.query(Payment)
             .filter(
                 Payment.user_id == user_id,
-                Payment.period_year == year,
-                Payment.period_month == month,
+                Payment.period_year.in_([year - 1, year, year + 1]),
                 Payment.payment_type == PaymentType.MONTHLY_DUES.value,
-                Payment.status == PaymentStatus.SUCCESS.value,
+                Payment.status == status,
             )
-            .first()
+            .order_by(Payment.created_at.desc())
+            .all()
         )
+
+    def _successful_period_payment(self, user_id: str, year: int, month: int) -> Optional[Payment]:
+        for payment in self._dues_payments(user_id, year, PaymentStatus.SUCCESS.value):
+            if (year, month) in self._periods_for(payment):
+                return payment
+        return None
+
+    def _payable_periods(self, user: User, year: int) -> list[tuple[int, int]]:
+        join_year, join_month = self._join_period(user)
+        paid = {
+            period
+            for payment in self._dues_payments(user.id, year, PaymentStatus.SUCCESS.value)
+            for period in self._periods_for(payment)
+        }
+        periods = []
+        for month in range(1, 13):
+            period = (year, month)
+            if period < (join_year, join_month) or period in paid:
+                continue
+            periods.append(period)
+        return periods
+
+    def _next_unpaid_periods(self, user: User, count: int, start_year: int) -> list[tuple[int, int]]:
+        join_year, join_month = self._join_period(user)
+        paid = {
+            period
+            for payment in self._dues_payments(user.id, start_year, PaymentStatus.SUCCESS.value)
+            for period in self._periods_for(payment)
+        }
+        periods = []
+        year, month = start_year, 1
+        if (year, month) < (join_year, join_month):
+            year, month = join_year, join_month
+        while len(periods) < count and year <= start_year + 1:
+            period = (year, month)
+            if period not in paid:
+                periods.append(period)
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+        return periods
 
     def _pending_period_payment(self, user_id: str, year: int, month: int) -> Optional[Payment]:
         return (
@@ -148,30 +236,64 @@ class PaymentService:
         )
 
     async def initiate(self, user: User, request: InitiatePaymentRequest) -> InitiatePaymentResponse:
-        amount_ghs = self._amount_for_type(request.payment_type)
-        period_year, period_month = self._resolve_period(
-            user, request.period_year, request.period_month
-        )
+        if not self._branch_collects_dues(user):
+            if request.payment_type == PaymentType.MONTHLY_DUES.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This branch collects affiliation only, not monthly dues",
+                )
+            return await self._initiate_affiliation(user, request)
 
-        existing_success = self._successful_period_payment(user.id, period_year, period_month)
-        if existing_success:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{self._period_label(period_year, period_month)} is already paid",
+        now = self._now()
+        year = request.period_year or now.year
+        monthly_amount = self._amount_for_type(PaymentType.MONTHLY_DUES.value)
+        payable = self._payable_periods(user, year)
+
+        if request.pay_full or request.months_count:
+            if request.pay_full:
+                selected = self._next_unpaid_periods(user, 12, year)
+                if len(selected) < 12:
+                    raise HTTPException(status_code=400, detail="A full year is 12 unpaid months")
+            else:
+                if not payable:
+                    raise HTTPException(status_code=400, detail="There are no unpaid months to pay")
+                count = min(request.months_count or 1, len(payable))
+                selected = payable[:count]
+        else:
+            period_year, period_month = self._resolve_period(
+                user, request.period_year, request.period_month
             )
+            if (period_year, period_month) not in payable and self._successful_period_payment(
+                user.id, period_year, period_month
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{self._period_label(period_year, period_month)} is already paid",
+                )
+            selected = [(period_year, period_month)]
+
+        period_year, period_month = selected[0]
+        amount_ghs = round(monthly_amount * len(selected), 2)
+        covered_months = [{"year": y, "month": m} for y, m in selected]
+        metadata = {
+            "period_year": period_year,
+            "period_month": period_month,
+            "covered_months": covered_months,
+            "months_count": len(selected),
+            "branch": user.current_branch,
+            "covers": ["monthly_dues", "annual_affiliation"],
+        }
 
         payment = self._pending_period_payment(user.id, period_year, period_month)
-        if payment:
-            payment.amount_ghs = amount_ghs
+        same_bundle = (
+            payment
+            and list(self._periods_for(payment)) == selected
+            and float(payment.amount_ghs) == amount_ghs
+        )
+        if same_bundle:
             payment.provider = PaymentProvider.PAYSTACK.value
             payment.method = request.method or "card"
-            payment.payment_metadata = {
-                **(payment.payment_metadata or {}),
-                "period_year": period_year,
-                "period_month": period_month,
-                "branch": user.current_branch,
-                "covers": ["monthly_dues", "annual_affiliation"],
-            }
+            payment.payment_metadata = {**(payment.payment_metadata or {}), **metadata}
         else:
             payment = Payment(
                 id=generate_id(),
@@ -185,16 +307,60 @@ class PaymentService:
                 period_month=period_month,
                 currency=settings.DEFAULT_CURRENCY,
                 status=PaymentStatus.PENDING.value,
-                payment_metadata={
-                    "period_year": period_year,
-                    "period_month": period_month,
-                    "branch": user.current_branch,
-                    "covers": ["monthly_dues", "annual_affiliation"],
-                },
+                payment_metadata=metadata,
             )
             self.db.add(payment)
         self.db.commit()
 
+        return await self._initiate_paystack(user, payment, request)
+
+    async def _initiate_affiliation(
+        self, user: User, request: InitiatePaymentRequest
+    ) -> InitiatePaymentResponse:
+        amount_ghs = self._amount_for_type(PaymentType.ANNUAL_AFFILIATION.value)
+        if amount_ghs <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Annual affiliation fee is not configured",
+            )
+
+        now = self._now()
+        period_year = request.period_year or now.year
+        existing_success = self._successful_affiliation_payment(user.id, period_year)
+        if existing_success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{period_year} affiliation is already paid",
+            )
+
+        payment = self._pending_affiliation_payment(user.id, period_year)
+        metadata = {
+            "period_year": period_year,
+            "branch": user.current_branch,
+            "covers": ["annual_affiliation"],
+        }
+        if payment:
+            payment.amount_ghs = amount_ghs
+            payment.provider = PaymentProvider.PAYSTACK.value
+            payment.method = request.method or "card"
+            payment.payment_metadata = {**(payment.payment_metadata or {}), **metadata}
+        else:
+            payment = Payment(
+                id=generate_id(),
+                user_id=user.id,
+                reference=self.generate_reference(PaymentType.ANNUAL_AFFILIATION.value),
+                payment_type=PaymentType.ANNUAL_AFFILIATION.value,
+                provider=PaymentProvider.PAYSTACK.value,
+                method=request.method or "card",
+                amount_ghs=amount_ghs,
+                period_year=period_year,
+                period_month=1,
+                currency=settings.DEFAULT_CURRENCY,
+                status=PaymentStatus.PENDING.value,
+                payment_metadata=metadata,
+            )
+            self.db.add(payment)
+        self.db.commit()
         return await self._initiate_paystack(user, payment, request)
 
     async def _initiate_paystack(
@@ -225,7 +391,7 @@ class PaymentService:
             amount_ghs=float(payment.amount_ghs),
             period_year=payment.period_year,
             period_month=payment.period_month,
-            period_label=self._period_label(payment.period_year, payment.period_month),
+            period_label=self._bundle_label(payment),
             authorization_url=result.authorization_url,
             access_code=result.access_code,
         )
@@ -291,6 +457,14 @@ class PaymentService:
             period_label=self._period_label(payment.period_year, payment.period_month),
             authorization_url=result.get("authorization_url"),
         )
+
+    def _bundle_label(self, payment: Payment) -> str:
+        periods = self._periods_for(payment)
+        if len(periods) <= 1:
+            return self._period_label(payment.period_year, payment.period_month)
+        start = self._period_label(*periods[0])
+        end = self._period_label(*periods[-1])
+        return f"{start} – {end}"
 
     @staticmethod
     def _channel_to_method(channel: str) -> str:
@@ -615,6 +789,16 @@ class PaymentService:
 
     def _sync_member_flags(self, user: User) -> None:
         now = self._now()
+        if not self._branch_collects_dues(user):
+            user.month_dues_paid_status = "NOT_REQUIRED"
+            amount = self._amount_for_type(PaymentType.ANNUAL_AFFILIATION.value)
+            if amount <= 0:
+                user.year_affiliation_paid_status = "NOT_REQUIRED"
+                return
+            paid = self._successful_affiliation_payment(user.id, now.year)
+            user.year_affiliation_paid_status = "YES" if paid else "NO"
+            return
+
         current_paid = self._successful_period_payment(user.id, now.year, now.month)
         user.month_dues_paid_status = "YES" if current_paid else "NO"
 
@@ -633,20 +817,20 @@ class PaymentService:
     def get_schedule(self, user: User, year: Optional[int] = None) -> DuesScheduleResponse:
         now = self._now()
         year = year or now.year
+        self._sync_member_flags(user)
+        self.db.commit()
+        if not self._branch_collects_dues(user):
+            return self._affiliation_only_schedule(user, year)
+
         monthly_amount = settings.MONTHLY_DUES_AMOUNT_GHS
         join_year, join_month = self._join_period(user)
 
-        paid_rows = (
-            self.db.query(Payment)
-            .filter(
-                Payment.user_id == user.id,
-                Payment.period_year == year,
-                Payment.payment_type == PaymentType.MONTHLY_DUES.value,
-                Payment.status == PaymentStatus.SUCCESS.value,
-            )
-            .all()
-        )
-        paid_by_month = {row.period_month: row for row in paid_rows}
+        paid_rows = self._dues_payments(user.id, year, PaymentStatus.SUCCESS.value)
+        paid_by_month = {}
+        for row in paid_rows:
+            for covered_year, covered_month in self._periods_for(row):
+                if covered_year == year:
+                    paid_by_month[covered_month] = row
 
         months: list[DuesMonthItem] = []
         months_paid = 0
@@ -702,7 +886,10 @@ class PaymentService:
         return DuesScheduleResponse(
             year=year,
             currency=settings.DEFAULT_CURRENCY,
+            collects_dues=True,
+            billing_mode="dues_and_affiliation",
             monthly_amount_ghs=monthly_amount,
+            affiliation_amount_ghs=0,
             annual_total_ghs=settings.ANNUAL_MEMBERSHIP_AMOUNT_GHS,
             months_paid=months_paid,
             months_applicable=months_applicable,
@@ -712,6 +899,47 @@ class PaymentService:
             current_month_paid=current_month_paid,
             year_in_good_standing=year_in_good_standing,
             months=months,
+        )
+
+    def _affiliation_only_schedule(self, user: User, year: int) -> DuesScheduleResponse:
+        amount = self._amount_for_type(PaymentType.ANNUAL_AFFILIATION.value)
+        paid = self._successful_affiliation_payment(user.id, year)
+        if amount <= 0:
+            status_value = "not_due"
+            can_pay = False
+            outstanding = 0.0
+            paid_amount = 0.0
+        elif paid:
+            status_value = "paid"
+            can_pay = False
+            outstanding = 0.0
+            paid_amount = amount
+        else:
+            status_value = "due"
+            can_pay = True
+            outstanding = amount
+            paid_amount = 0.0
+
+        return DuesScheduleResponse(
+            year=year,
+            currency=settings.DEFAULT_CURRENCY,
+            collects_dues=False,
+            billing_mode="affiliation_only",
+            monthly_amount_ghs=0,
+            annual_total_ghs=amount,
+            affiliation_amount_ghs=amount,
+            affiliation_status=status_value,
+            affiliation_can_pay=can_pay,
+            affiliation_payment_id=paid.id if paid else None,
+            affiliation_receipt_number=paid.receipt_number if paid else None,
+            months_paid=1 if paid else 0,
+            months_applicable=1 if amount > 0 else 0,
+            months_outstanding=1 if can_pay else 0,
+            amount_paid_ghs=paid_amount,
+            amount_outstanding_ghs=outstanding,
+            current_month_paid=True,
+            year_in_good_standing=bool(paid) or amount <= 0,
+            months=[],
         )
 
     def _get_payment_by_reference(self, reference: str) -> Payment:

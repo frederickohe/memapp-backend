@@ -393,7 +393,7 @@ class SocialService:
         if user_id == "ymca":
             return YMCA_PROFILE
         user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
+        if not user or user.status == UserStatus.DELETED:
             raise HTTPException(status_code=404, detail="User not found")
         return self._to_profile(user, current_user_id)
 
@@ -401,7 +401,7 @@ class SocialService:
         if user_id == "ymca":
             return PagedSocialFeed(total=0, page=page, size=size, items=[])
         user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
+        if not user or user.status == UserStatus.DELETED:
             raise HTTPException(status_code=404, detail="User not found")
         query = self.db.query(SocialPost).filter(SocialPost.user_id == user_id).order_by(desc(SocialPost.created_at))
         total = query.count()

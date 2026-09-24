@@ -77,8 +77,15 @@ class DuesMonthItem(BaseModel):
 class DuesScheduleResponse(BaseModel):
     year: int
     currency: str
+    collects_dues: bool = True
+    billing_mode: str = "dues_and_affiliation"
     monthly_amount_ghs: float
     annual_total_ghs: float
+    affiliation_amount_ghs: float = 0
+    affiliation_status: Optional[str] = None
+    affiliation_can_pay: bool = False
+    affiliation_payment_id: Optional[str] = None
+    affiliation_receipt_number: Optional[str] = None
     months_paid: int
     months_applicable: int
     months_outstanding: int

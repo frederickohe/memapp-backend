@@ -50,6 +50,7 @@ class BranchService:
             lng=branch.lng,
             president=president,
             is_active=branch.is_active,
+            collects_dues=bool(branch.collects_dues),
             created_at=branch.created_at,
         )
 
@@ -181,6 +182,7 @@ class BranchService:
             lng=request.lng,
             president_id=request.president_id,
             is_active=True,
+            collects_dues=request.collects_dues,
         )
         self.db.add(branch)
         self.db.commit()
@@ -211,6 +213,8 @@ class BranchService:
             branch.president_id = request.president_id or None
         if request.is_active is not None:
             branch.is_active = request.is_active
+        if request.collects_dues is not None:
+            branch.collects_dues = request.collects_dues
 
         branch.updated_at = datetime.now(timezone.utc)
         self.db.commit()

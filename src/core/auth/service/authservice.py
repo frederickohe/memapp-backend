@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from core.auth.service.sessiondriver import SessionDriver
 from core.exceptions.AuthException import InvalidCredentialsError, PermissionDeniedError
 from core.exceptions.UserException import UserAlreadyExistsError
-from core.user.model.User import User, UserType
+from core.user.model.User import User, UserStatus, UserType
 from core.user.service.membership_helpers import resolve_branch, resolve_position
 from core.rbac.service.rbac_service import RbacService
 from core.rbac.service.role_service import RoleService
@@ -259,6 +259,9 @@ class AuthService:
             raise InvalidCredentialsError()
 
         if not self.verify_password(password, db_user.hashed_password):
+            raise InvalidCredentialsError()
+
+        if db_user.status == UserStatus.DELETED:
             raise InvalidCredentialsError()
 
         if db_user.user_type == UserType.MEMBER and not db_user.enabled:

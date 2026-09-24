@@ -73,6 +73,15 @@ def get_current_user_endpoint(authjwt: AuthJWT = Depends(validate_token), db: Se
     return user_service.get_current_user(current_user_email)
 
 
+@user_routes.delete("/me", response_model=MessageResponse)
+def delete_current_user_endpoint(
+    authjwt: AuthJWT = Depends(validate_token),
+    db: Session = Depends(get_db),
+):
+    current_user_email = authjwt.get_jwt_subject()
+    return UserService(db).delete_own_account(current_user_email)
+
+
 @user_routes.patch("/me", response_model=UserResponse)
 def update_current_user_endpoint(
     payload: UserUpdateRequest,

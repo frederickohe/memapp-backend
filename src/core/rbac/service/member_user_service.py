@@ -31,10 +31,11 @@ class MemberUserService:
 
     def _base_query(self):
         return self.db.query(User).filter(
+            User.status != UserStatus.DELETED,
             or_(
                 User.user_type == UserType.MEMBER,
                 User.member_id.isnot(None),
-            )
+            ),
         )
 
     def _to_response(self, user: User) -> MemberUserResponse:
@@ -68,7 +69,11 @@ class MemberUserService:
             position=format_role_label(role_name) or resolve_position(self.db, user),
             assigned_region=user.assigned_region,
             assigned_branch=user.assigned_branch,
-            month_dues_paid_status=user.month_dues_paid_status,
+            month_dues_paid_status=(
+                "NOT_REQUIRED"
+                if user.branch is not None and not user.branch.collects_dues
+                else user.month_dues_paid_status
+            ),
             year_affiliation_paid_status=user.year_affiliation_paid_status,
             volunteer_points=user.volunteer_points or 0,
             profile_picture_url=user.profile_picture_url,
@@ -99,16 +104,25 @@ class MemberUserService:
             User.status == UserStatus.ACTIVE,
         ).count()
         inactive = total - active
-        dues_pending = members.filter(
-            or_(
-                User.month_dues_paid_status.is_(None),
-                func.upper(User.month_dues_paid_status).notin_(["YES", "PAID"]),
+        dues_pending = (
+            members.outerjoin(Branch, User.branch_id == Branch.id)
+            .filter(or_(User.branch_id.is_(None), Branch.collects_dues.is_(True)))
+            .filter(
+                or_(
+                    User.month_dues_paid_status.is_(None),
+                    func.upper(User.month_dues_paid_status).notin_(
+                        ["YES", "PAID", "NOT_REQUIRED", "N/A"]
+                    ),
+                )
             )
-        ).count()
+            .count()
+        )
         affiliation_pending = members.filter(
             or_(
                 User.year_affiliation_paid_status.is_(None),
-                func.upper(User.year_affiliation_paid_status).notin_(["YES", "PAID"]),
+                func.upper(User.year_affiliation_paid_status).notin_(
+                    ["YES", "PAID", "NOT_REQUIRED", "N/A"]
+                ),
             )
         ).count()
 

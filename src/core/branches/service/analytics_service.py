@@ -43,7 +43,10 @@ class AnalyticsService:
             branch_name = branch.name if branch else None
             region_name = branch.region.name if branch and branch.region else None
 
-        members_query = self.db.query(User).filter(User.user_type == UserType.MEMBER)
+        members_query = self.db.query(User).filter(
+            User.user_type == UserType.MEMBER,
+            User.status != UserStatus.DELETED,
+        )
         members_query = apply_member_scope(
             members_query, self.db, resolved_scope, resolved_region_id, resolved_branch_id
         )
@@ -204,7 +207,10 @@ class AnalyticsService:
         query = (
             self.db.query(User)
             .options(joinedload(User.branch).joinedload(Branch.region))
-            .filter(User.user_type == UserType.MEMBER)
+            .filter(
+                User.user_type == UserType.MEMBER,
+                User.status != UserStatus.DELETED,
+            )
             .order_by(User.created_at.desc())
         )
         query = apply_member_scope(query, self.db, scope, region_id, branch_id)

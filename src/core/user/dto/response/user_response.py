@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     membership_type: Optional[str] = None
     current_branch: Optional[str] = None
     branch_id: Optional[str] = None
+    branch_collects_dues: bool = True
     member_id: Optional[str] = None
     date_joined_organization: Optional[date] = None
     past_positions: Optional[List[str]] = None

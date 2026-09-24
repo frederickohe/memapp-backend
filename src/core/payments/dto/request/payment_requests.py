@@ -11,6 +11,8 @@ class InitiatePaymentRequest(BaseModel):
     callback_url: Optional[str] = None
     period_year: Optional[int] = Field(None, ge=2020, le=2100)
     period_month: Optional[int] = Field(None, ge=1, le=12)
+    months_count: Optional[int] = Field(None, ge=1, le=12)
+    pay_full: bool = False
 
 
 class ActivatePaymentRequest(BaseModel):
