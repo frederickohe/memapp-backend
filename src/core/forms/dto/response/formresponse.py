@@ -131,6 +131,19 @@ class PagedFormResponse(BaseModel):
         from_attributes = True
 
 
+class FormPublicLinkResponse(BaseModel):
+    """Public form summary shown before the email gate. No fields or member data."""
+    id: str
+    title: str
+    description: Optional[str] = None
+    is_active: bool
+
+
+class FormEmailCheckResponse(BaseModel):
+    """Whether the email belongs to a YMCA app account. No other account details."""
+    has_account: bool
+
+
 class MessageResponse(BaseModel):
     """Generic message response"""
     message: str

@@ -45,6 +45,11 @@ class FormUpdateRequest(BaseModel):
         from_attributes = True
 
 
+class FormEmailCheckRequest(BaseModel):
+    """Email entered on a public form link."""
+    email: str
+
+
 class FormResponseSubmitRequest(BaseModel):
     """Request model for submitting a form response"""
     data: Dict[str, Any]  # Key-value pairs matching form fields

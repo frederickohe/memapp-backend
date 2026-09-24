@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
 from fastapi import HTTPException, status
 from core.forms.model.Form import Form, FormResponse, FormAssignmentType
-from core.user.model.User import User
+from core.user.model.User import User, UserStatus, UserType
 from core.forms.dto.response.formresponse import (
     FormResponse as FormResponseDTO,
     FormDetailResponse,
@@ -19,7 +19,9 @@ from core.forms.dto.response.formresponse import (
     FieldOptionCount,
     DailyResponseCount,
     PagedFormResponse,
-    FormFieldResponse
+    FormFieldResponse,
+    FormPublicLinkResponse,
+    FormEmailCheckResponse,
 )
 
 
@@ -108,6 +110,36 @@ class FormService:
         
         return self._convert_form_to_dto(form)
     
+    def get_public_form_link(self, form_id: str) -> FormPublicLinkResponse:
+        """Title and status for a shareable form link. Does not include fields."""
+        form = self.db.query(Form).filter(Form.id == form_id).first()
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        return FormPublicLinkResponse(
+            id=form.id,
+            title=form.title,
+            description=form.description,
+            is_active=form.is_active,
+        )
+
+    def check_app_account(self, email: str) -> FormEmailCheckResponse:
+        """True when the email belongs to a member who can sign in to the app."""
+        normalized = (email or "").strip().lower()
+        if not normalized or "@" not in normalized:
+            raise HTTPException(status_code=400, detail="Enter a valid email address")
+
+        user = (
+            self.db.query(User)
+            .filter(User.email.ilike(normalized))
+            .first()
+        )
+        has_account = bool(
+            user
+            and user.user_type == UserType.MEMBER
+            and user.status != UserStatus.DELETED
+        )
+        return FormEmailCheckResponse(has_account=has_account)
+
     def get_form(self, form_id: str) -> FormResponseDTO:
         """Get a specific form by ID"""
         form = self.db.query(Form).filter(Form.id == form_id).first()

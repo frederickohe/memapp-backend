@@ -16,11 +16,14 @@ from core.forms.dto.response.formresponse import (
     FormAnalyticsResponse,
     PagedFormResponse,
     MessageResponse,
+    FormPublicLinkResponse,
+    FormEmailCheckResponse,
 )
 from core.forms.dto.request.formrequest import (
     FormCreateRequest,
     FormUpdateRequest,
     FormResponseSubmitRequest,
+    FormEmailCheckRequest,
 )
 from core.forms.service.formservice import FormService
 
@@ -62,6 +65,25 @@ async def get_my_forms(
     """Get all forms assigned to the current user"""
     service = FormService(db)
     return service.get_user_form_responses(user_id=current_user.id, page=page, size=size)
+
+
+@form_routes.get("/public/{form_id}", response_model=FormPublicLinkResponse)
+async def get_public_form_link(form_id: str, db: Session = Depends(get_db)):
+    """Public form title for a shareable link. Does not include questions."""
+    service = FormService(db)
+    return service.get_public_form_link(form_id)
+
+
+@form_routes.post("/public/{form_id}/check-email", response_model=FormEmailCheckResponse)
+async def check_form_link_email(
+    form_id: str,
+    request: FormEmailCheckRequest,
+    db: Session = Depends(get_db),
+):
+    """Check whether an email already has a YMCA app account. Returns only that fact."""
+    service = FormService(db)
+    service.get_public_form_link(form_id)
+    return service.check_app_account(request.email)
 
 
 @form_routes.get("/available", response_model=PagedFormResponse)
