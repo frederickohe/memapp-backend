@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, Query
+import hmac
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from config import settings
 from core.auth.dependencies import get_db, require_admin, optional_admin_user
 from core.user.model.User import User
 from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
 from core.news.dto.request.newsrequest import NewsCreateRequest, NewsUpdateRequest
 from core.news.service.newsservice import NewsService
+from core.news.service.wordpress_sync import WordpressSync
 
 news_routes = APIRouter()
 
@@ -50,6 +54,32 @@ def get_upcoming_events(
     """Get published upcoming events"""
     news_service = NewsService(db)
     return news_service.get_upcoming_events(limit=limit)
+
+
+def _secret_matches(provided: str) -> bool:
+    expected = (settings.WORDPRESS_WEBHOOK_SECRET or "").strip()
+    if not expected or not provided:
+        return False
+    return hmac.compare_digest(provided.encode(), expected.encode())
+
+
+@news_routes.post("/wordpress")
+async def wordpress_webhook(
+    request: Request,
+    secret: str = Query(""),
+    event: str = Query("upsert", regex="^(upsert|delete)$"),
+    db=Depends(get_db),
+):
+    """Accept a WP Webhooks post payload. Authenticated by the URL secret."""
+    if not (settings.WORDPRESS_WEBHOOK_SECRET or "").strip():
+        raise HTTPException(status_code=503, detail="WordPress webhook is not configured")
+    if not _secret_matches(secret):
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
+    payload = await request.json()
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="JSON object required")
+    return WordpressSync(db).handle(payload, event=event)
 
 
 @news_routes.get("/{news_id}", response_model=NewsResponse)

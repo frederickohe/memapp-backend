@@ -80,6 +80,10 @@ class News(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # WordPress post this row was copied from, when imported by the webhook
+    wordpress_post_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, unique=True)
+    wordpress_permalink: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Relationships
     admin: Mapped["User"] = relationship("User", back_populates="news_posts")

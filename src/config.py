@@ -152,6 +152,11 @@ class Settings(BaseSettings):
     # Required in the request header to create the first admin when none exist.
     ADMIN_SETUP_SECRET: str = os.environ.get("ADMIN_SETUP_SECRET", "")
 
+    # Query secret on POST /api/v1/news/wordpress. Empty disables the webhook.
+    WORDPRESS_WEBHOOK_SECRET: str = os.environ.get("WORDPRESS_WEBHOOK_SECRET", "")
+    # Optional category slug. Empty accepts every published post.
+    WORDPRESS_NEWS_CATEGORY: str = os.environ.get("WORDPRESS_NEWS_CATEGORY", "")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
