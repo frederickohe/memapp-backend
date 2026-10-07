@@ -55,6 +55,7 @@ class UserResponse(BaseModel):
     # Status and Timestamps
     status: str
     enabled: bool
+    two_factor_enabled: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
     

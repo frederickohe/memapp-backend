@@ -105,6 +105,7 @@ class UserService:
             in_app_notification=user.in_app_notification,
             sms_notification=user.sms_notification,
             enabled=user.enabled,
+            two_factor_enabled=bool(user.two_factor_enabled),
             status=user.status,
             created_at=user.created_at,
             updated_at=user.updated_at,
@@ -332,6 +333,7 @@ class UserService:
         user.assigned_region_id = None
         user.assigned_branch_id = None
         user.enabled = False
+        user.two_factor_enabled = False
         user.status = UserStatus.DELETED
         user.updated_at = datetime.utcnow()
 

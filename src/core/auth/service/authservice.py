@@ -83,6 +83,7 @@ class AuthService:
             "role": user.role,
             "position": resolve_position(self.db, user),
             "enabled": user.enabled,
+            "two_factor_enabled": bool(user.two_factor_enabled),
             "user_type": user.user_type,
         }
 
@@ -207,12 +208,6 @@ class AuthService:
                     detail="Could not create account. Please try again.",
                 )
 
-        if phone:
-            try:
-                self.otp_service.send_otp_phone(phone)
-            except Exception as exc:
-                logger.warning(f"Signup OTP send skipped for {phone}: {exc}")
-
         return self._issue_tokens(db_user, "Account created successfully")
     
     def verify_and_enable_user(self, phone: str, otp: str):
@@ -275,7 +270,7 @@ class AuthService:
     def signin(self, user: BaseModel):
         """Login the user by generating a JWT token and returning tokens."""
         db_user = self.authenticate_user(user.email, user.password)
-        return self._issue_tokens(db_user)
+        return self._finish_signin(db_user)
 
     def admin_signin(self, user: BaseModel):
         """Login an admin user; rejects accounts that are not admins."""
@@ -287,8 +282,206 @@ class AuthService:
         if not db_user.enabled:
             raise PermissionDeniedError(detail="Admin account is disabled")
 
+        if db_user.two_factor_enabled:
+            return self._begin_two_factor_challenge(db_user)
+
         AdminUserService(self.db).record_login(db_user)
         return self._issue_tokens(db_user)
+
+    def _preferred_otp_channel(self, user: User) -> str:
+        if user.phone_number:
+            return "phone"
+        if user.email:
+            return "email"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Add a phone number or email before using two-factor authentication",
+        )
+
+    def _mask_destination(self, user: User, channel: str) -> str:
+        if channel == "phone":
+            phone = user.phone_number or ""
+            if len(phone) <= 4:
+                return phone
+            return f"{'*' * (len(phone) - 4)}{phone[-4:]}"
+        email = user.email or ""
+        local, _, domain = email.partition("@")
+        if not domain:
+            return "***"
+        return f"{local[:1]}***@{domain}"
+
+    def _deliver_otp(self, user: User, channel: Optional[str] = None) -> tuple[str, str]:
+        channel = channel or self._preferred_otp_channel(user)
+        if channel == "phone":
+            result = self.otp_service.send_otp_phone(user.phone_number or "")
+        elif channel == "email":
+            result = self.otp_service.send_otp_email(user.email)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported verification channel")
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=result.message or "Could not send verification code",
+            )
+        return channel, self._mask_destination(user, channel)
+
+    def _otp_matches(self, user: User, otp: str, channel: str) -> bool:
+        if channel == "email":
+            return self.otp_service.validate_otp(email=user.email, otp=otp)
+        return self.otp_service.validate_otp(phone=user.phone_number, otp=otp)
+
+    def _create_two_factor_challenge(self, user: User, channel: str) -> str:
+        payload = {
+            "sub": user.email,
+            "type": "2fa",
+            "channel": channel,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        }
+        encoded = jwt.encode(
+            payload,
+            self.session_driver.SECRET_KEY,
+            algorithm=self.session_driver.ALGORITHM,
+        )
+        return encoded if isinstance(encoded, str) else encoded.decode("utf-8")
+
+    def _read_two_factor_challenge(self, token: str) -> tuple[str, str]:
+        try:
+            payload = jwt.decode(
+                token,
+                self.session_driver.SECRET_KEY,
+                algorithms=[self.session_driver.ALGORITHM],
+            )
+        except jwt.PyJWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verification session expired. Sign in again.",
+            )
+        if payload.get("type") != "2fa" or not payload.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verification session expired. Sign in again.",
+            )
+        return payload["sub"], payload.get("channel") or "phone"
+
+    def _user_by_email(self, email: str) -> Optional[User]:
+        normalized = (email or "").strip().lower()
+        return (
+            self.db.query(User)
+            .filter(func.lower(User.email) == normalized)
+            .first()
+        )
+
+    def _begin_two_factor_challenge(self, user: User) -> JSONResponse:
+        channel, destination = self._deliver_otp(user)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "two_factor_required": True,
+                "challenge_token": self._create_two_factor_challenge(user, channel),
+                "channel": channel,
+                "destination": destination,
+                "message": "Enter the verification code we sent you",
+            },
+        )
+
+    def _finish_signin(self, user: User):
+        if user.two_factor_enabled:
+            return self._begin_two_factor_challenge(user)
+        return self._issue_tokens(user)
+
+    def _bound_user(self, user: User) -> User:
+        bound = self.db.query(User).filter(User.id == user.id).first()
+        if not bound:
+            raise HTTPException(status_code=404, detail="User not found")
+        return bound
+
+    def request_enable_two_factor(self, user: User) -> dict:
+        user = self._bound_user(user)
+        if user.two_factor_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Two-factor authentication is already on",
+            )
+        channel, destination = self._deliver_otp(user)
+        return {
+            "success": True,
+            "message": "Verification code sent",
+            "channel": channel,
+            "destination": destination,
+        }
+
+    def confirm_enable_two_factor(self, user: User, otp: str, channel: Optional[str] = None) -> dict:
+        user = self._bound_user(user)
+        if user.two_factor_enabled:
+            return {
+                "success": True,
+                "message": "Two-factor authentication is already on",
+                "two_factor_enabled": True,
+            }
+        selected = channel if channel in {"phone", "email"} else self._preferred_otp_channel(user)
+        if not self._otp_matches(user, otp, selected):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+        user.two_factor_enabled = True
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(user)
+        return {
+            "success": True,
+            "message": "Two-factor authentication is on",
+            "two_factor_enabled": True,
+        }
+
+    def disable_two_factor(self, user: User) -> dict:
+        user = self._bound_user(user)
+        user.two_factor_enabled = False
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        return {
+            "success": True,
+            "message": "Two-factor authentication is off",
+            "two_factor_enabled": False,
+        }
+
+    def complete_two_factor_signin(self, challenge_token: str, otp: str):
+        email, channel = self._read_two_factor_challenge(challenge_token)
+        user = self._user_by_email(email)
+        if not user or not user.two_factor_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verification session expired. Sign in again.",
+            )
+        if user.status == UserStatus.DELETED:
+            raise InvalidCredentialsError()
+        if not self._otp_matches(user, otp, channel):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+        if user.user_type == UserType.ADMIN:
+            if not user.enabled:
+                raise PermissionDeniedError(detail="Admin account is disabled")
+            AdminUserService(self.db).record_login(user)
+        return self._issue_tokens(user)
+
+    def resend_two_factor(self, challenge_token: str) -> dict:
+        email, channel = self._read_two_factor_challenge(challenge_token)
+        user = self._user_by_email(email)
+        if not user or not user.two_factor_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Verification session expired. Sign in again.",
+            )
+        channel, destination = self._deliver_otp(user, channel)
+        return {
+            "success": True,
+            "message": "Verification code sent",
+            "channel": channel,
+            "destination": destination,
+        }
 
     def create_admin(self, request: BaseModel, created_by: Optional[User] = None):
         """Create a new admin user account."""

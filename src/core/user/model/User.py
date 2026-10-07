@@ -101,6 +101,9 @@ class User(Base):
     sms_notification: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    two_factor_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user_type: Mapped[str] = mapped_column(String, nullable=False, default=UserType.MEMBER)

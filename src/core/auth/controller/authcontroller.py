@@ -7,6 +7,11 @@ from core.auth.dto.request.admin_create import AdminCreateRequest
 from core.auth.dto.request.resetpassword import ResetPasswordRequest
 from core.auth.dto.request.resetpassnoauth import ResetPassNoAuth
 from core.auth.dto.request.otp_verify import OTPVerifyRequest
+from core.auth.dto.request.two_factor import (
+    TwoFactorConfirmRequest,
+    TwoFactorResendRequest,
+    TwoFactorSignInRequest,
+)
 from core.auth.dto.request.refresh_token import RefreshTokenRequest
 from core.auth.dto.response.admin_response import AdminResponse
 from core.auth.service.authservice import AuthService
@@ -83,6 +88,40 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     """Verify OTP and enable user account"""
     auth_service = AuthService(db)
     return auth_service.verify_and_enable_user(request.phone, request.otp)
+
+
+@auth_routes.post("/2fa/enable")
+def enable_two_factor(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send a verification code so the signed-in user can turn on two-factor authentication."""
+    return AuthService(db).request_enable_two_factor(user)
+
+
+@auth_routes.post("/2fa/confirm")
+def confirm_two_factor(
+    request: TwoFactorConfirmRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Confirm the verification code and turn on two-factor authentication."""
+    return AuthService(db).confirm_enable_two_factor(user, request.otp, request.channel)
+
+
+@auth_routes.post("/2fa/disable")
+def disable_two_factor(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Turn off two-factor authentication for the signed-in user."""
+    return AuthService(db).disable_two_factor(user)
+
+
+@auth_routes.post("/2fa/signin")
+def complete_two_factor_signin(request: TwoFactorSignInRequest, db: Session = Depends(get_db)):
+    """Finish sign-in after the two-factor code is confirmed."""
+    return AuthService(db).complete_two_factor_signin(request.challenge_token, request.otp)
+
+
+@auth_routes.post("/2fa/resend")
+def resend_two_factor(request: TwoFactorResendRequest, db: Session = Depends(get_db)):
+    """Send another verification code for an in-progress two-factor sign-in."""
+    return AuthService(db).resend_two_factor(request.challenge_token)
 
 
 # ============= ADMIN AUTH ROUTES =============
