@@ -2,6 +2,8 @@ from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel, validator
 
+from core.user.membership_types import coerce_membership_type
+
 
 class UserUpdateRequest(BaseModel):
     fullname: Optional[str] = None
@@ -46,3 +48,7 @@ class UserUpdateRequest(BaseModel):
         if value == "" or value is None:
             return None
         return value
+
+    @validator("membership_type")
+    def official_membership_type(cls, value):
+        return coerce_membership_type(value, strict=True)

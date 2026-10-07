@@ -87,7 +87,7 @@ jobs:
       - name: Health check
         run: |
           for i in $(seq 1 20); do
-            if curl -fsS --max-time 10 https://api.ymemberapp.com/api/v1/ | grep -q "Ymca"; then
+            if curl -fsS --max-time 10 https://api.ymemberapp.com/api/v1/ | grep -q "YMCA"; then
               echo "API is healthy"
               exit 0
             fi

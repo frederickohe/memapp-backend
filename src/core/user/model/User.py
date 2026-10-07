@@ -26,10 +26,11 @@ class Gender(str, PyEnum):
     OTHER = "OTHER"
 
 class MembershipType(str, PyEnum):
-    BASIC = "BASIC"
-    PREMIUM = "PREMIUM"
-    VIP = "VIP"
-    STANDARD = "STANDARD"
+    JUNIOR = "Junior"
+    ASSOCIATE = "Associate"
+    FULL = "Full"
+    LIFE = "Life Membership"
+    HONORARY = "Honorary"
 
 class UserType(str, PyEnum):
     MEMBER = "MEMBER"

@@ -3,6 +3,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, validator
 
+from core.user.membership_types import coerce_membership_type
+
 
 class UpdateMemberUserRequest(BaseModel):
     full_name: Optional[str] = None
@@ -25,6 +27,10 @@ class UpdateMemberUserRequest(BaseModel):
         if value == "" or value is None:
             return None
         return value
+
+    @validator("membership_type")
+    def normalize_membership_type(cls, value):
+        return coerce_membership_type(value, strict=False)
 
 
 class AssignMemberRoleRequest(BaseModel):

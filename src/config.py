@@ -4,7 +4,7 @@ import os
 
 
 class Settings(BaseSettings):
-    SERVICE_NAME: str = "Ymca Backend"
+    SERVICE_NAME: str = "YMCA Backend"
     DEBUG: bool = True
     APP_PORT: int = int(os.environ.get("APP_PORT", "3090"))
 

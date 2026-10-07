@@ -2,6 +2,8 @@ from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr, Field, validator
 
+from core.user.membership_types import coerce_membership_type
+
 
 OPTIONAL_STRING_FIELDS = {
     "phone_number",
@@ -90,3 +92,7 @@ class UserCreateRequest(BaseModel):
             return None
         text = str(value).strip()
         return text or None
+
+    @validator("membership_type")
+    def official_membership_type(cls, value):
+        return coerce_membership_type(value, strict=True)

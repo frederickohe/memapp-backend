@@ -1,4 +1,4 @@
-# Ymca Member App backend stack.
+# YMCA Member App backend stack.
 # Requires external Docker network "memapp" — create with:
 #   cd ../memappcaddy && ./setup-networks.sh
 # All services join "memapp" so Caddy can reach API/pgAdmin and they can reach db/redis.

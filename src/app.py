@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.SERVICE_NAME,
     version="1.0",
-    description="""**Ymca App API** An AI focused app infrastructure deployed with python.
+    description="""**YMCA App API** An AI focused app infrastructure deployed with python.
 
     Default Endpoints:
     - Authentication

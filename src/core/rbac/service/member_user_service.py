@@ -19,6 +19,7 @@ from core.rbac.dto.response.member_user_responses import (
 from core.rbac.service.rbac_service import RbacService
 from core.rbac.service.role_service import RoleService
 from core.dashboard.dto.response.dashboardresponse import ProminentProfileResponse
+from core.user.membership_types import coerce_membership_type
 from core.user.model.User import User, UserStatus, UserType
 from core.user.service.membership_helpers import format_role_label, resolve_branch, resolve_position
 
@@ -224,6 +225,21 @@ class MemberUserService:
             raise HTTPException(status_code=404, detail="User not found")
 
         data = request.dict(exclude_unset=True)
+        if "membership_type" in data:
+            incoming = data["membership_type"]
+            stored = user.membership_type
+            unchanged = (
+                incoming is not None
+                and stored is not None
+                and str(incoming).strip().casefold() == str(stored).strip().casefold()
+            )
+            try:
+                data["membership_type"] = coerce_membership_type(
+                    incoming,
+                    strict=not unchanged,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         field_map = {
             "full_name": "fullname",
             "email": "email",
