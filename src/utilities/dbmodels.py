@@ -30,6 +30,7 @@ _model_modules = [
 	"core.paystack.model.paystack_session",
 	"core.branches.model.Region",
 	"core.branches.model.Branch",
+	"core.settings.model.system_setting",
 ]
 
 

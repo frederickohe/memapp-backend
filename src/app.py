@@ -28,6 +28,7 @@ from core.paystack.controller.paystack_controller import paystack_routes
 from core.moolre.controller.moolre_controller import moolre_routes
 from core.branches.controller.branch_controller import branch_routes, public_branch_routes
 from core.social.controller.socialcontroller import social_routes
+from core.settings.controller.settings_controller import public_app_routes, settings_admin_routes
 from core.rbac.service.permission_service import PermissionService
 
 from utilities.dbconfig import Base, engine, SessionLocal
@@ -141,6 +142,8 @@ app.include_router(paystack_routes, prefix="/api/v1/paystack", tags=["Paystack"]
 app.include_router(moolre_routes, prefix="/api/v1/moolre", tags=["Moolre"])
 app.include_router(branch_routes, prefix="/api/v1/admin", tags=["Branches & Regions"])
 app.include_router(public_branch_routes, prefix="/api/v1", tags=["Public Branches"])
+app.include_router(public_app_routes, prefix="/api/v1", tags=["App Config"])
+app.include_router(settings_admin_routes, prefix="/api/v1/admin", tags=["Admin Settings"])
 
 # JWT Authentication Settings
 
