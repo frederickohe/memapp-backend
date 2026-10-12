@@ -1,13 +1,13 @@
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
 class MemberUserResponse(BaseModel):
     id: str
     full_name: str
-    email: EmailStr
+    email: str
     phone: Optional[str] = None
     member_id: Optional[str] = None
     membership_type: Optional[str] = None

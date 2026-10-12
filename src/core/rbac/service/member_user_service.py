@@ -54,7 +54,7 @@ class MemberUserService:
         return MemberUserResponse(
             id=user.id,
             full_name=user.fullname,
-            email=user.email,
+            email=user.email or "",
             phone=user.phone_number,
             member_id=user.member_id,
             membership_type=user.membership_type,
