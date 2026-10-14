@@ -1,4 +1,5 @@
 """Receive a WP Webhooks post payload and upsert app news."""
+import logging
 import re
 import secrets
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from core.user.model.User import User, UserStatus, UserType
 WORDPRESS_AUTHOR_ID = "USR_WORDPRESS"
 WORDPRESS_AUTHOR_EMAIL = "wordpress@ymemberapp.com"
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
 _TAG_RE = re.compile(r"<[^>]+>")
 _SCRIPT_RE = re.compile(r"(?is)<(script|style).*?>.*?</\1>")
 _BREAK_RE = re.compile(r"(?i)<br\s*/?>")
@@ -136,16 +138,19 @@ class WordpressSync:
         image = _thumbnail_url(payload)
 
         if existing:
+            newly_published = published and not existing.is_published
             existing.title = title[:255]
             existing.content = content or title
             existing.summary = summary
             existing.wordpress_permalink = permalink
-            if published and not existing.is_published:
+            if newly_published:
                 existing.published_at = datetime.now(timezone.utc)
             existing.is_published = published
             existing.updated_at = datetime.now(timezone.utc)
             _replace_image(existing, image)
             self.db.commit()
+            if newly_published:
+                self._notify_published(existing)
             return {"status": "updated", "message": "News updated", "news_id": existing.id}
 
         author = _ensure_author(self.db)
@@ -165,4 +170,18 @@ class WordpressSync:
         _replace_image(news, image)
         self.db.add(news)
         self.db.commit()
+        self._notify_published(news)
         return {"status": "created", "message": "News created", "news_id": news.id}
+
+    def _notify_published(self, news: News) -> None:
+        try:
+            from core.notification.service.notification_service import NotificationService
+
+            NotificationService(self.db).notify_news_published(
+                news.id,
+                news.title,
+                news.summary or news.content,
+            )
+        except Exception:
+            logger.exception("Could not notify members about news %s", news.id)
+            self.db.rollback()

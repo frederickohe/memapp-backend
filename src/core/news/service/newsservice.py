@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 import secrets
 import string
 from typing import List, Optional
@@ -8,6 +9,8 @@ from fastapi import HTTPException
 from core.news.model.News import News, NewsMedia, MediaType, ContentType
 from core.user.model.User import User
 from core.news.dto.response.newsresponse import NewsResponse, PagedNewsResponse, MessageResponse
+
+logger = logging.getLogger(__name__)
 
 
 class NewsService:
@@ -84,6 +87,8 @@ class NewsService:
         self.db.add(news)
         self.db.commit()
         self.db.refresh(news)
+        if news.is_published:
+            self._notify_published(news)
         
         return self._to_response(news)
     
@@ -242,6 +247,7 @@ class NewsService:
             raise HTTPException(status_code=404, detail="News not found")
         
         self._assert_can_manage(admin_id)
+        was_published = bool(news.is_published)
         
         if title is not None:
             news.title = title
@@ -271,6 +277,8 @@ class NewsService:
 
         news.updated_at = datetime.now(timezone.utc)
         self.db.commit()
+        if news.is_published and not was_published:
+            self._notify_published(news)
         return self.get_news(news_id)
     
     def delete_news(self, news_id: str, admin_id: str) -> MessageResponse:
@@ -293,13 +301,29 @@ class NewsService:
             raise HTTPException(status_code=404, detail="News not found")
         
         self._assert_can_manage(admin_id)
+        was_published = bool(news.is_published)
         
         news.is_published = True
         news.published_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(news)
+        if not was_published:
+            self._notify_published(news)
         
         return self._to_response(news)
+
+    def _notify_published(self, news: News) -> None:
+        try:
+            from core.notification.service.notification_service import NotificationService
+
+            NotificationService(self.db).notify_news_published(
+                news.id,
+                news.title,
+                news.summary or news.content,
+            )
+        except Exception:
+            logger.exception("Could not notify members about news %s", news.id)
+            self.db.rollback()
     
     def unpublish_news(self, news_id: str, admin_id: str) -> NewsResponse:
         """Unpublish a news segment (admin only)"""

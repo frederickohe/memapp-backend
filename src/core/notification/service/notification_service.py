@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+import calendar
 import secrets
 import string
 from typing import List, Optional, Dict, Any
@@ -6,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, load_only
 from fastapi import HTTPException, status
 from core.notification.model.Notification import Notification, NotificationStatus, NotificationType
-from core.user.model.User import User
+from core.user.model.User import User, UserStatus, UserType
 from core.moolre.service.moolreservice import MoolreException
 from core.sms.service.sms_factory import get_sms_service
 from config import settings
@@ -195,6 +196,128 @@ class NotificationService:
         
         return results
 
+    def _create_in_app(
+        self,
+        user_id: str,
+        notification_type: NotificationType,
+        data: dict,
+    ) -> Notification:
+        notification = Notification(
+            id=self._generate_notification_id(),
+            user_id=user_id,
+            type=notification_type,
+            data=data,
+            status=NotificationStatus.UNREAD,
+            sms_sent=False,
+        )
+        self.db.add(notification)
+        return notification
+
+    def _has_source(self, user_id: str, source: str) -> bool:
+        return (
+            self.db.query(Notification.id)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.data["source"].astext == source,
+            )
+            .first()
+            is not None
+        )
+
+    def notify_members_once(
+        self,
+        source: str,
+        notification_type: NotificationType,
+        data: dict,
+    ) -> int:
+        """Store one in-app notice per active member. Skip anyone who already has this source."""
+        payload = {**data, "source": source}
+        already = {
+            row[0]
+            for row in self.db.query(Notification.user_id)
+            .filter(Notification.data["source"].astext == source)
+            .all()
+        }
+        members = (
+            self.db.query(User.id)
+            .filter(
+                User.user_type == UserType.MEMBER,
+                User.enabled.is_(True),
+                User.status == UserStatus.ACTIVE,
+            )
+            .all()
+        )
+        created = 0
+        for (user_id,) in members:
+            if user_id in already:
+                continue
+            self._create_in_app(user_id, notification_type, payload)
+            created += 1
+        if created:
+            self.db.commit()
+        return created
+
+    def notify_news_published(self, news_id: str, title: str, summary: Optional[str]) -> int:
+        message = (summary or "").strip() or "A new update was published."
+        if len(message) > 240:
+            message = message[:237].rstrip() + "..."
+        return self.notify_members_once(
+            source=f"news:{news_id}",
+            notification_type=NotificationType.INFO,
+            data={
+                "title": (title or "News update")[:255],
+                "message": message,
+                "news_id": news_id,
+            },
+        )
+
+    def ensure_monthly_payment_notice(self, user_id: str) -> None:
+        """Create this month's dues notice once, when the member still owes it."""
+        now = datetime.now(timezone.utc)
+        source = f"monthly_dues:{now.year:04d}-{now.month:02d}"
+        if self._has_source(user_id, source):
+            return
+
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if (
+            not user
+            or user.user_type != UserType.MEMBER
+            or not user.enabled
+            or user.status == UserStatus.DELETED
+        ):
+            return
+
+        from core.payments.service.payment_service import PaymentService
+
+        payments = PaymentService(self.db)
+        if not payments._branch_collects_dues(user):
+            return
+        if (now.year, now.month) < payments._join_period(user):
+            return
+        if payments._successful_period_payment(user.id, now.year, now.month):
+            return
+
+        label = f"{calendar.month_name[now.month]} {now.year}"
+        amount = float(settings.MONTHLY_DUES_AMOUNT_GHS or 0)
+        self._create_in_app(
+            user.id,
+            NotificationType.TRANSACTIONAL,
+            {
+                "title": f"{label} payment due",
+                "message": f"Your {label} membership payment of GH₵ {amount:.2f} is due.",
+                "source": source,
+                "period": f"{now.year:04d}-{now.month:02d}",
+            },
+        )
+        self.db.commit()
+
+    def _ensure_monthly_payment_notice(self, user_id: str) -> None:
+        try:
+            self.ensure_monthly_payment_notice(user_id)
+        except Exception:
+            logger.exception("Could not create monthly payment notice for %s", user_id)
+            self.db.rollback()
+
     def get_notification(self, notification_id: str) -> NotificationResponse:
         """Get a specific notification by ID"""
         notification = (
@@ -217,6 +340,7 @@ class NotificationService:
         notification_type: Optional[NotificationType] = None
     ) -> PagedNotificationResponse:
         """Get paginated notifications for a user with optional filters"""
+        self._ensure_monthly_payment_notice(user_id)
         query = (
             self.db.query(Notification)
             .options(load_only(*_NOTIFICATION_CORE_COLUMNS))
@@ -242,6 +366,7 @@ class NotificationService:
         )
 
     def count_unread(self, user_id: str) -> int:
+        self._ensure_monthly_payment_notice(user_id)
         # COUNT(id) avoids selecting mapped SMS columns that older DBs may lack.
         return (
             self.db.query(func.count(Notification.id))
