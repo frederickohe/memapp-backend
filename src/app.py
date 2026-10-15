@@ -151,7 +151,11 @@ class JWTSettings(BaseSettings):
     authjwt_secret_key: str = settings.SECRET_KEY
     authjwt_algorithm: str = settings.ALGORITHM
     authjwt_access_token_expires: int = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60  # in seconds
-    authjwt_refresh_token_expires: int = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60  # in seconds
+    authjwt_refresh_token_expires: int = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # in seconds
+    # Tokens already on devices were signed with a 30-minute expiry. Leeway
+    # keeps those signatures valid for the refresh-token lifetime, so current
+    # members do not have to sign in again.
+    authjwt_decode_leeway: int = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
 
 @AuthJWT.load_config

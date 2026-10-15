@@ -2,6 +2,10 @@ from pydantic import BaseSettings
 from sqlalchemy.engine.url import URL
 import os
 
+# Signed-in members stay in the app for this long. Access and refresh tokens
+# share it so a cold start does not hit a 30-minute access token.
+_SESSION_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "90"))
+
 
 class Settings(BaseSettings):
     SERVICE_NAME: str = "YMCA Backend"
@@ -21,9 +25,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.environ.get('SECRET_KEY', "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
     ALGORITHM: str = os.environ.get('ALGORITHM', "HS256")
     KID: str = os.environ.get('KID')
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 360
-    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.environ.get('REFRESH_TOKEN_EXPIRE_DAYS', 90))
+    REFRESH_TOKEN_EXPIRE_DAYS: int = _SESSION_EXPIRE_DAYS
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = _SESSION_EXPIRE_DAYS * 24 * 60
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = _SESSION_EXPIRE_DAYS * 24 * 60
     REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
     REDIS_PORT: int = int(os.environ.get('REDIS_PORT', 6379))
     REDIS_PASSWORD: str = os.environ.get('REDIS_PASSWORD', '')
