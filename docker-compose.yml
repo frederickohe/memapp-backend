@@ -75,6 +75,7 @@ services:
       DB_ECHO: ${DB_ECHO:-false}
       AUTO_MIGRATE: ${AUTO_MIGRATE:-false}
       BASE_FRONTEND_URL: ${BASE_FRONTEND_URL:-https://ymemberapp.com}
+      ADMIN_PORTAL_URL: ${ADMIN_PORTAL_URL:-https://admin.ymemberapp.com}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-https://api.ymemberapp.com}
 
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-paystack}

@@ -5,7 +5,11 @@ from core.auth.dto.request.user_create import UserCreateRequest
 from core.auth.dto.request.userlogin import UserLoginRequest
 from core.auth.dto.request.admin_create import AdminCreateRequest
 from core.auth.dto.request.resetpassword import ResetPasswordRequest
-from core.auth.dto.request.resetpassnoauth import ResetPassNoAuth
+from core.auth.dto.request.forgot_password import (
+    ForgotPasswordRequest,
+    ForgotPasswordResetRequest,
+    ForgotPasswordVerifyRequest,
+)
 from core.auth.dto.request.otp_verify import OTPVerifyRequest
 from core.auth.dto.request.two_factor import (
     TwoFactorConfirmRequest,
@@ -74,13 +78,61 @@ async def reset_password(
     return auth_service.change_password(user, request)
 
 
-@auth_routes.post("/no-auth/reset-password")
-async def reset_password_no_auth(
-    request: ResetPassNoAuth,
-    db: Session = Depends(get_db)
+@auth_routes.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send a password-reset PIN to the member's phone via SMS."""
+    return AuthService(db).request_password_reset(request.phone)
+
+
+@auth_routes.post("/forgot-password/verify")
+def forgot_password_verify(
+    request: ForgotPasswordVerifyRequest,
+    db: Session = Depends(get_db),
 ):
-    auth_service = AuthService(db)
-    return auth_service.reset_password_no_auth(request)
+    """Verify the SMS PIN and return a short-lived reset token."""
+    return AuthService(db).verify_password_reset_otp(request.phone, request.otp)
+
+
+@auth_routes.post("/forgot-password/reset")
+@auth_routes.post("/no-auth/reset-password")
+def forgot_password_reset(
+    request: ForgotPasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    """Set a new password using a token issued after OTP verification."""
+    return AuthService(db).complete_password_reset(
+        request.reset_token,
+        request.new_password,
+    )
+
+
+@auth_routes.post("/admin/forgot-password")
+def admin_forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send a password-reset PIN to an admin's phone via SMS."""
+    return AuthService(db).request_password_reset(request.phone, admin_only=True)
+
+
+@auth_routes.post("/admin/forgot-password/verify")
+def admin_forgot_password_verify(
+    request: ForgotPasswordVerifyRequest,
+    db: Session = Depends(get_db),
+):
+    """Verify the admin SMS PIN and return a short-lived reset token."""
+    return AuthService(db).verify_password_reset_otp(
+        request.phone, request.otp, admin_only=True
+    )
+
+
+@auth_routes.post("/admin/forgot-password/reset")
+def admin_forgot_password_reset(
+    request: ForgotPasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    """Set a new admin password using a token issued after OTP verification."""
+    return AuthService(db).complete_password_reset(
+        request.reset_token,
+        request.new_password,
+    )
 
 
 @auth_routes.post("/verify-otp")

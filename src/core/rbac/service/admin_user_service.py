@@ -1,4 +1,6 @@
+import logging
 import math
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -6,6 +8,7 @@ from fastapi import HTTPException
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
 
+from config import settings
 from core.exceptions.AuthException import PermissionDeniedError
 from core.exceptions.UserException import UserAlreadyExistsError
 from core.rbac.dto.request.admin_user_requests import (
@@ -20,9 +23,12 @@ from core.rbac.dto.response.admin_user_responses import (
 )
 from core.rbac.service.rbac_service import RbacService
 from core.rbac.service.role_service import RoleService
+from core.sms.service.sms_factory import get_sms_service
 from core.user.model.User import User, UserType
 from utilities.id_helper import generate_id
+from utilities.phone import normalize_phone
 
+logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -35,7 +41,41 @@ class AdminUserService:
     def _hash_password(self, password: str) -> str:
         return pwd_context.hash(password)
 
-    def _to_response(self, user: User) -> AdminUserResponse:
+    def _generate_temp_password(self, length: int = 12) -> str:
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$"
+        return "".join(secrets.choice(alphabet) for _ in range(length))
+
+    def _admin_login_url(self) -> str:
+        portal = (settings.ADMIN_PORTAL_URL or "https://admin.ymemberapp.com").rstrip("/")
+        return f"{portal}/login"
+
+    def _send_admin_invite_sms(self, phone: str, email: str, password: str) -> bool:
+        """Text the admin portal login link and temporary credentials (2 SMS, 160-char limit)."""
+        login_url = self._admin_login_url()
+        link_msg = f"YMCA Admin account ready. Sign in: {login_url}"
+        cred_msg = (
+            f"YMCA Admin login {email} Temp pass: {password}. Change on first sign-in."
+        )
+        try:
+            sms = get_sms_service()
+            link_result = sms.send_sms(phone, link_msg)
+            cred_result = sms.send_sms(phone, cred_msg[:160])
+            ok = bool(link_result.get("success")) and bool(cred_result.get("success"))
+            if not ok:
+                logger.error(
+                    "Admin invite SMS partial/failed for %s: link=%s cred=%s",
+                    phone,
+                    link_result,
+                    cred_result,
+                )
+            return ok
+        except Exception:
+            logger.exception("Admin invite SMS failed for %s", phone)
+            return False
+
+    def _to_response(
+        self, user: User, invite_sms_sent: Optional[bool] = None
+    ) -> AdminUserResponse:
         role = user.admin_role or self.role_service.get_role_entity(user.role_id or "")
         if not role:
             raise HTTPException(status_code=500, detail="Admin user has no assigned role")
@@ -51,6 +91,7 @@ class AdminUserService:
             role=AdminRoleSummary(id=role.id, name=role.name),
             assigned_region=user.assigned_region,
             assigned_branch=user.assigned_branch,
+            invite_sms_sent=invite_sms_sent,
         )
 
     def list_admin_users(self, page: int = 1, limit: int = 20) -> AdminUserListResponse:
@@ -115,26 +156,39 @@ class AdminUserService:
         if target_role.name == "branch_admin" and not request.assigned_branch:
             raise HTTPException(status_code=400, detail="Branch admins require an assigned branch")
 
+        phone = normalize_phone(request.phone)
+        if not phone:
+            raise HTTPException(status_code=400, detail="Enter a valid phone number")
+
         existing_user = (
             self.db.query(User)
-            .filter((User.email == request.email) | (User.fullname == request.full_name))
+            .filter(
+                (User.email == request.email)
+                | (User.fullname == request.full_name)
+                | (User.phone_number == phone)
+            )
             .first()
         )
         if existing_user:
             if existing_user.email == request.email:
                 raise UserAlreadyExistsError(field="email")
+            if existing_user.phone_number == phone:
+                raise UserAlreadyExistsError(field="phone")
             raise UserAlreadyExistsError(field="fullname")
+
+        temp_password = (request.password or "").strip() or self._generate_temp_password()
+        reset_required = True if request.password is None else bool(request.reset_required)
 
         user = User(
             id=generate_id(),
             fullname=request.full_name,
             email=request.email,
-            phone_number=request.phone,
-            hashed_password=self._hash_password(request.password),
+            phone_number=phone,
+            hashed_password=self._hash_password(temp_password),
             user_type=UserType.ADMIN,
             role=target_role.name.upper(),
             role_id=target_role.id,
-            reset_required=request.reset_required,
+            reset_required=reset_required,
             assigned_region=request.assigned_region,
             assigned_branch=request.assigned_branch,
             enabled=True,
@@ -144,7 +198,9 @@ class AdminUserService:
         self.db.commit()
         self.db.refresh(user)
         user.admin_role = target_role
-        return self._to_response(user)
+
+        invite_sms_sent = self._send_admin_invite_sms(phone, user.email, temp_password)
+        return self._to_response(user, invite_sms_sent=invite_sms_sent)
 
     def update_admin_user(
         self,
@@ -167,7 +223,10 @@ class AdminUserService:
         if request.full_name is not None:
             user.fullname = request.full_name
         if request.phone is not None:
-            user.phone_number = request.phone
+            phone = normalize_phone(request.phone)
+            if not phone:
+                raise HTTPException(status_code=400, detail="Enter a valid phone number")
+            user.phone_number = phone
         if request.is_active is not None:
             user.enabled = request.is_active
         if request.reset_required is not None:

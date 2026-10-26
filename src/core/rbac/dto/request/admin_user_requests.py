@@ -7,9 +7,10 @@ class CreateAdminUserRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
     phone: str = Field(..., min_length=6, max_length=20)
-    password: str = Field(..., min_length=8)
+    # Optional: backend generates a temporary password and texts the login link.
+    password: Optional[str] = Field(None, min_length=8)
     role_id: str
-    reset_required: bool = False
+    reset_required: bool = True
     assigned_region: Optional[str] = None
     assigned_branch: Optional[str] = None
 

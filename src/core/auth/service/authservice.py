@@ -716,59 +716,176 @@ class AuthService:
             content={"message": "Password updated successfully"},
         )
 
-    def reset_password_no_auth(self, request: BaseModel):
-        """Reset password without authentication (for forgotten password flow)"""
-        try:
-            # Find user by email
-            db_user = self.db.query(User).filter(User.email == request.email).first()
-            if not db_user:
-                # Don't reveal whether email exists for security
-                return JSONResponse(
-                    status_code=200,
-                    content={"message": "If the email exists, password has been reset"}
-                )
-                
-            # Update password
-            db_user.hashed_password = self.hash_password(request.new_password)
-            self.db.commit()
-            
-            # Invalidate all existing tokens
-            self.session_driver.remove_tokens(request.email)
-            
-            return JSONResponse(
-                status_code=200,
-                content={"message": "If the email exists, password has been reset"}
+    def _user_by_phone(self, phone: str) -> Optional[User]:
+        normalized = normalize_phone(phone)
+        if not normalized:
+            return None
+        user = (
+            self.db.query(User)
+            .filter(User.phone_number == normalized)
+            .first()
+        )
+        if user:
+            return user
+        # Fallback for legacy rows stored without normalization.
+        raw = (phone or "").strip()
+        if raw and raw != normalized:
+            return (
+                self.db.query(User)
+                .filter(User.phone_number == raw)
+                .first()
             )
-            
-        except Exception as e:
-            logger.error(f"Password reset error: {str(e)}")
+        return None
+
+    def _create_password_reset_token(self, user: User) -> str:
+        payload = {
+            "sub": user.email,
+            "type": "password_reset",
+            "uid": user.id,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+        }
+        encoded = jwt.encode(
+            payload,
+            self.session_driver.SECRET_KEY,
+            algorithm=self.session_driver.ALGORITHM,
+        )
+        return encoded if isinstance(encoded, str) else encoded.decode("utf-8")
+
+    def _read_password_reset_token(self, token: str) -> User:
+        try:
+            payload = jwt.decode(
+                token,
+                self.session_driver.SECRET_KEY,
+                algorithms=[self.session_driver.ALGORITHM],
+            )
+        except jwt.PyJWTError:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error resetting password"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Reset session expired. Request a new code.",
+            )
+        if payload.get("type") != "password_reset" or not payload.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Reset session expired. Request a new code.",
+            )
+        user = self._user_by_email(payload["sub"])
+        if not user or user.status == UserStatus.DELETED:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Reset session expired. Request a new code.",
+            )
+        if payload.get("uid") and payload["uid"] != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Reset session expired. Request a new code.",
+            )
+        return user
+
+    def request_password_reset(self, phone: str, *, admin_only: bool = False) -> dict:
+        """Send a password-reset PIN via SMS when the phone matches an account."""
+        normalized = normalize_phone(phone)
+        if not normalized:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enter a valid phone number",
             )
 
-    def generate_password_reset_token(self, email: str) -> str:
-        """Generate a password reset token for the user"""
+        # Always return the same shape so callers cannot enumerate accounts.
+        generic = {
+            "success": True,
+            "message": "If an account exists for this number, a reset code was sent",
+        }
+
+        user = self._user_by_phone(normalized)
+        if not user or user.status == UserStatus.DELETED or not user.phone_number:
+            return generic
+        if admin_only and user.user_type != UserType.ADMIN:
+            return generic
+        if admin_only and not user.enabled:
+            return generic
+
         try:
-            # Verify user exists
-            db_user = self.db.query(User).filter(User.email == email).first()
-            if not db_user:
-                # Don't reveal whether email exists
-                return None
-                
-            # Create reset token that expires in 1 hour
-            reset_data = {
-                "sub": email,
-                "type": "reset",
-                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
-            }
-            
-            return jwt.encode(
-                reset_data,
-                self.session_driver.SECRET_KEY,
-                algorithm=self.session_driver.ALGORITHM
+            _, destination = self._deliver_otp(user, "phone")
+        except HTTPException as exc:
+            # Surface SMS delivery failures; hide "user not found" cases above.
+            if exc.status_code == status.HTTP_502_BAD_GATEWAY:
+                raise
+            return generic
+
+        return {
+            **generic,
+            "destination": destination,
+            "channel": "phone",
+        }
+
+    def verify_password_reset_otp(
+        self, phone: str, otp: str, *, admin_only: bool = False
+    ) -> dict:
+        """Validate the SMS PIN and issue a short-lived reset token."""
+        normalized = normalize_phone(phone)
+        if not normalized:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enter a valid phone number",
             )
-            
+
+        user = self._user_by_phone(normalized)
+        if not user or user.status == UserStatus.DELETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+        if admin_only and user.user_type != UserType.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+
+        if not self.otp_service.validate_otp(phone=user.phone_number, otp=otp):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification code",
+            )
+
+        return {
+            "success": True,
+            "message": "Verification successful",
+            "reset_token": self._create_password_reset_token(user),
+        }
+
+    def complete_password_reset(self, reset_token: str, new_password: str) -> dict:
+        """Set a new password using a token issued after OTP verification."""
+        if len(new_password or "") < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters",
+            )
+
+        user = self._read_password_reset_token(reset_token)
+        user.hashed_password = self.hash_password(new_password)
+        user.reset_required = False
+        user.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+
+        if user.email:
+            self.session_driver.remove_tokens(user.email)
+
+        return {
+            "success": True,
+            "message": "Password updated successfully",
+        }
+
+    def reset_password_no_auth(self, request: BaseModel):
+        """Complete forgot-password reset after OTP verification (legacy path)."""
+        return self.complete_password_reset(request.reset_token, request.new_password)
+
+    def generate_password_reset_token(self, email: str) -> Optional[str]:
+        """Generate a password reset token for the user (admin/tools helper)."""
+        try:
+            db_user = self._user_by_email(email)
+            if not db_user:
+                return None
+            return self._create_password_reset_token(db_user)
         except Exception as e:
             logger.error(f"Error generating reset token: {str(e)}")
             return None

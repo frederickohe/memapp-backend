@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     SMS_MQ_QUEUE: str = os.environ.get('SMS_MQ_QUEUE')
     EMAIL_MQ_QUEUE: str = os.environ.get('EMAIL_MQ_QUEUE')
     BASE_FRONTEND_URL: str = os.environ.get('BASE_FRONTEND_URL')
+    # Admin portal URL used in invite / login-link SMS messages.
+    ADMIN_PORTAL_URL: str = os.environ.get(
+        'ADMIN_PORTAL_URL', 'https://admin.ymemberapp.com'
+    )
     BATCH_CUSTOMER_UPLOAD_QUEUE: str = os.environ.get('BATCH_CUSTOMER_UPLOAD_QUEUE')
     COMPANY_QUEUE: str = os.environ.get('COMPANY_QUEUE')
     

@@ -20,6 +20,7 @@ class AdminUserResponse(BaseModel):
     role: AdminRoleSummary
     assigned_region: Optional[str] = None
     assigned_branch: Optional[str] = None
+    invite_sms_sent: Optional[bool] = None
 
 
 class AdminUserListResponse(BaseModel):
